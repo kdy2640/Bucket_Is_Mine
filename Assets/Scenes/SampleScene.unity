@@ -38,7 +38,7 @@ RenderSettings:
   m_ReflectionIntensity: 1
   m_CustomReflection: {fileID: 0}
   m_Sun: {fileID: 705507994}
-  m_IndirectSpecularColor: {r: 0.44657826, g: 0.49641263, b: 0.57481676, a: 1}
+  m_IndirectSpecularColor: {r: 0.44657898, g: 0.4964133, b: 0.5748178, a: 1}
   m_UseRadianceAmbientProbe: 0
 --- !u!157 &3
 LightmapSettings:
@@ -564,6 +564,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 42af77c68be579a438d7aa0d3728b781, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  mc: {fileID: 0}
   Anchor: {fileID: 194755232}
   horizontalRotationOffset: 0.1
   verticalRotationOffset: 0.1
@@ -767,9 +768,14 @@ MonoBehaviour:
   noiseScale: 0.2
   heightTresshold: 0.5
   visualizeNoise: 0
-  use3DNoise: 0
-  isSmoothShading: 0
+  use3DNoise: 1
   mat: {fileID: 2100000, guid: b15e0515725d75d44a423442de9318b6, type: 2}
+  chunkSize: 16
+  benchmarkIterations: 20
+  benchmarkRadius: 3
+  benchmarkAtTerrainCenter: 1
+  benchmarkPosition: {x: 0, y: 0, z: 0}
+  isSmoothShading: 0
 --- !u!23 &1180579442
 MeshRenderer:
   m_ObjectHideFlags: 0

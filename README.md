@@ -7,7 +7,7 @@
     <img src="https://img.youtube.com/vi/NIxopKzcRkQ/hqdefault.jpg" alt="Watch the Prototype" width="70%">
   </a>
 </p>
-
+ 
 ---
 
 ## WIP: About the Project
