@@ -10,13 +10,14 @@ using UnityEngine.InputSystem;
 public class PlayerController : MonoBehaviour
 {
     GameObject CameraHolder;
-    MarchingCubes mc;
     Rigidbody rigid;
     bool isLeftMouseHolding = false;
     bool isRightMouseHolding = false;
     bool isSelectMode = false;
     double theta = Math.PI * 1.5;
 
+    [SerializeField]
+    MarchingCubes mc;
     [SerializeField]
     public GameObject Anchor;
     [SerializeField]
@@ -154,7 +155,7 @@ public class PlayerController : MonoBehaviour
             {
                 if(mc == null)
                 {
-                    mc = hit.transform.gameObject.GetComponent<MarchingCubes>();
+                    mc = hit.transform.gameObject.GetComponentInParent<MarchingCubes>();
                 }
                 Anchor.transform.position = hit.point;
                 Anchor.transform.localScale = Vector3.one * anchorRadius;
