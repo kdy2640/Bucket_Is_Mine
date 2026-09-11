@@ -59,7 +59,7 @@ public class MarchingCubesMesher
                 for (int z = startZ; z < endZ; z++)
                 {
                     float[] cubeCorners = GetCubeCorners(x, y, z);
-                    MarchCube(builder, new Vector3(x, y, z) * resolution, cubeCorners);
+                    MarchCube(builder, new Vector3Int(x, y, z), cubeCorners);
                 }
             }
         }
@@ -80,7 +80,7 @@ public class MarchingCubesMesher
         return cubeCorners;
     }
 
-    private void MarchCube(MeshBuilder builder, Vector3 position, float[] cubeCorners)
+    private void MarchCube(MeshBuilder builder, Vector3Int cubeIndex, float[] cubeCorners)
     {
         int configIndex = GetConfigIndex(cubeCorners);
 
@@ -96,11 +96,14 @@ public class MarchingCubesMesher
                 return;
             }
 
-            Vector3 vertex0 = GetEdgeVertex(position, cubeCorners, MarchingTable.Triangles[configIndex, edgeIndex]);
-            Vector3 vertex1 = GetEdgeVertex(position, cubeCorners, MarchingTable.Triangles[configIndex, edgeIndex + 1]);
-            Vector3 vertex2 = GetEdgeVertex(position, cubeCorners, MarchingTable.Triangles[configIndex, edgeIndex + 2]);
+            Vector3 vertex0 = GetEdgeVertex(
+                cubeIndex, cubeCorners, MarchingTable.Triangles[configIndex, edgeIndex], out Vector3 normal0);
+            Vector3 vertex1 = GetEdgeVertex(
+                cubeIndex, cubeCorners, MarchingTable.Triangles[configIndex, edgeIndex + 1], out Vector3 normal1);
+            Vector3 vertex2 = GetEdgeVertex(
+                cubeIndex, cubeCorners, MarchingTable.Triangles[configIndex, edgeIndex + 2], out Vector3 normal2);
 
-            builder.AddTriangle(vertex0, vertex1, vertex2);
+            builder.AddTriangle(vertex0, vertex1, vertex2, normal0, normal1, normal2);
         }
     }
 
@@ -119,24 +122,50 @@ public class MarchingCubesMesher
         return configIndex;
     }
 
-    private Vector3 GetEdgeVertex(Vector3 position, float[] cubeCorners, int edgeIndex)
+    private Vector3 GetEdgeVertex(
+        Vector3Int cubeIndex, float[] cubeCorners, int edgeIndex, out Vector3 normal)
     {
         int startCornerIndex = EdgeCornerIndexes[edgeIndex, 0];
         int endCornerIndex = EdgeCornerIndexes[edgeIndex, 1];
 
+        Vector3 position = (Vector3)cubeIndex * resolution;
         Vector3 edgeStart = position + (Vector3)MarchingTable.Corners[startCornerIndex] * resolution;
         Vector3 edgeEnd = position + (Vector3)MarchingTable.Corners[endCornerIndex] * resolution;
 
         float startDensity = cubeCorners[startCornerIndex];
         float endDensity = cubeCorners[endCornerIndex];
         float densityDelta = endDensity - startDensity;
+        bool useMidpoint = Mathf.Abs(densityDelta) < Mathf.Epsilon;
+        float t = useMidpoint ? 0.5f : Mathf.Clamp01((threshold - startDensity) / densityDelta);
 
-        if (Mathf.Abs(densityDelta) < Mathf.Epsilon)
+        normal = Vector3.zero;
+        if (isSmoothShading)
         {
-            return (edgeStart + edgeEnd) * 0.5f;
+            Vector3 startGradient = GetDensityGradient(cubeIndex + MarchingTable.Corners[startCornerIndex]);
+            Vector3 endGradient = GetDensityGradient(cubeIndex + MarchingTable.Corners[endCornerIndex]);
+            // Higher density is inside the terrain, so the outward normal opposes the gradient.
+            normal = -Vector3.Lerp(startGradient, endGradient, t).normalized;
         }
 
-        float t = Mathf.Clamp01((threshold - startDensity) / densityDelta);
-        return Vector3.Lerp(edgeStart, edgeEnd, t);
+        return useMidpoint ? (edgeStart + edgeEnd) * 0.5f : Vector3.Lerp(edgeStart, edgeEnd, t);
+    }
+
+    private Vector3 GetDensityGradient(Vector3Int index)
+    {
+        int minX = Mathf.Max(index.x - 1, 0);
+        int maxX = Mathf.Min(index.x + 1, width);
+        int minY = Mathf.Max(index.y - 1, 0);
+        int maxY = Mathf.Min(index.y + 1, densityFieldHeight);
+        int minZ = Mathf.Max(index.z - 1, 0);
+        int maxZ = Mathf.Min(index.z + 1, width);
+
+        // At the field boundary the sample span is one cell, giving a one-sided difference.
+        return new Vector3(
+            (densities[maxX, index.y, index.z] - densities[minX, index.y, index.z]) /
+                ((maxX - minX) * resolution),
+            (densities[index.x, maxY, index.z] - densities[index.x, minY, index.z]) /
+                ((maxY - minY) * resolution),
+            (densities[index.x, index.y, maxZ] - densities[index.x, index.y, minZ]) /
+                ((maxZ - minZ) * resolution));
     }
 }

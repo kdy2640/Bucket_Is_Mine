@@ -83,7 +83,8 @@ public class TerrainData
                         continue;
                     }
 
-                    float falloff = 1f - distance / radius;
+                    float t = 1f - distance / radius;
+                    float falloff = t * t * (3f - 2f * t);
                     SetDensity(index, GetDensity(index) + power * falloff);
                     minChangedIndex = Vector3Int.Min(minChangedIndex, index);
                     maxChangedIndex = Vector3Int.Max(maxChangedIndex, index);

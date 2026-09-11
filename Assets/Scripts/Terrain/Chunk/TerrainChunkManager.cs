@@ -42,15 +42,17 @@ public class TerrainChunkManager
             return 0;
         }
 
+        // Gradient normals also depend on density samples one cell beyond each corner.
+        int normalPadding = owner.IsSmoothShading ? 1 : 0;
         Vector3Int minCube = new Vector3Int(
-            Mathf.Clamp(minIndex.x - 1, 0, data.Width - 1),
-            Mathf.Clamp(minIndex.y - 1, 0, data.DensityFieldHeight - 1),
-            Mathf.Clamp(minIndex.z - 1, 0, data.Width - 1));
+            Mathf.Clamp(minIndex.x - 1 - normalPadding, 0, data.Width - 1),
+            Mathf.Clamp(minIndex.y - 1 - normalPadding, 0, data.DensityFieldHeight - 1),
+            Mathf.Clamp(minIndex.z - 1 - normalPadding, 0, data.Width - 1));
 
         Vector3Int maxCube = new Vector3Int(
-            Mathf.Clamp(maxIndex.x, 0, data.Width - 1),
-            Mathf.Clamp(maxIndex.y, 0, data.DensityFieldHeight - 1),
-            Mathf.Clamp(maxIndex.z, 0, data.Width - 1));
+            Mathf.Clamp(maxIndex.x + normalPadding, 0, data.Width - 1),
+            Mathf.Clamp(maxIndex.y + normalPadding, 0, data.DensityFieldHeight - 1),
+            Mathf.Clamp(maxIndex.z + normalPadding, 0, data.Width - 1));
 
         Vector3Int minChunk = CubeIndexToChunkCoord(minCube);
         Vector3Int maxChunk = CubeIndexToChunkCoord(maxCube);
