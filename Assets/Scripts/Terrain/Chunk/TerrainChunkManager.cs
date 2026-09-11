@@ -1,12 +1,15 @@
 using System.Collections.Generic;
+using Unity.Profiling;
 using UnityEngine;
 
 public class TerrainChunkManager : System.IDisposable
 {
+    private static readonly ProfilerMarker ColliderMarker = new ProfilerMarker("TerrainMesh.Collider");
     private readonly TerrainManager owner;
     private readonly TerrainMeshGenerator meshGenerator;
     private readonly Dictionary<Vector3Int, ChunkData> chunks =
         new Dictionary<Vector3Int, ChunkData>();
+    private readonly HashSet<Mesh> generatedMeshes = new HashSet<Mesh>();
 
     public TerrainChunkManager(TerrainManager owner)
     {
@@ -76,6 +79,14 @@ public class TerrainChunkManager : System.IDisposable
     public void Dispose()
     {
         meshGenerator.Dispose();
+        // Child components may already be destroyed when the owner's OnDestroy runs.
+        foreach (Mesh mesh in generatedMeshes)
+        {
+            if (Application.isPlaying) Object.Destroy(mesh);
+            else Object.DestroyImmediate(mesh);
+        }
+        generatedMeshes.Clear();
+        chunks.Clear();
     }
 
     private int RegenerateChunks(List<Vector3Int> chunkCoords)
@@ -186,14 +197,21 @@ public class TerrainChunkManager : System.IDisposable
         return parentRenderer != null ? parentRenderer.sharedMaterial : null;
     }
 
-    private static void SetChunkMesh(ChunkData chunk, Mesh mesh)
+    private void SetChunkMesh(ChunkData chunk, Mesh mesh)
     {
         Mesh oldMesh = chunk.meshFilter.sharedMesh;
         chunk.meshFilter.sharedMesh = mesh;
-        chunk.meshCollider.sharedMesh = null;
-        chunk.meshCollider.sharedMesh = mesh;
+        using (ColliderMarker.Auto())
+        {
+            chunk.meshCollider.sharedMesh = null;
+            chunk.meshCollider.sharedMesh = mesh;
+        }
+        if (mesh != null)
+        {
+            generatedMeshes.Add(mesh);
+        }
 
-        if (oldMesh == null)
+        if (oldMesh == null || !generatedMeshes.Remove(oldMesh))
         {
             return;
         }
@@ -224,7 +242,9 @@ public class TerrainChunkManager : System.IDisposable
 
         foreach (Vector3Int chunkCoord in unusedChunkCoords)
         {
-            GameObject chunkObject = chunks[chunkCoord].gameObject;
+            ChunkData chunk = chunks[chunkCoord];
+            GameObject chunkObject = chunk.gameObject;
+            SetChunkMesh(chunk, null);
             chunks.Remove(chunkCoord);
 
             if (Application.isPlaying)

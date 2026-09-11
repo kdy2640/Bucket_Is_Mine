@@ -21,6 +21,10 @@ public class TerrainManager : MonoBehaviour
     private TerrainData data;
     private TerrainGenerator generator;
     private TerrainChunkManager chunkManager;
+#if UNITY_EDITOR
+    // Unity preserves private serializable fields during script hot reload.
+    private bool regenerateAfterReload;
+#endif
 
     public TerrainData Data => data;
     public int ChunkSize => Mathf.Max(1, chunkSize);
@@ -120,21 +124,84 @@ public class TerrainManager : MonoBehaviour
 
     private TerrainData CreateTerrainData()
     {
+#if UNITY_EDITOR
+        // Resources can also be created by the edit-mode context menu, without OnEnable.
+        UnityEditor.AssemblyReloadEvents.beforeAssemblyReload -= OnBeforeAssemblyReload;
+        UnityEditor.AssemblyReloadEvents.beforeAssemblyReload += OnBeforeAssemblyReload;
+        UnityEditor.EditorApplication.playModeStateChanged -= OnPlayModeStateChanged;
+        UnityEditor.EditorApplication.playModeStateChanged += OnPlayModeStateChanged;
+        UnityEditor.SceneManagement.EditorSceneManager.sceneClosing -= OnSceneClosing;
+        UnityEditor.SceneManagement.EditorSceneManager.sceneClosing += OnSceneClosing;
+#endif
         return new TerrainData(width, densityFieldHeight, resolution, ChunkSize);
     }
 
     private void OnDestroy()
     {
+        ReleaseResources();
+    }
+
+    private void ReleaseResources()
+    {
+#if UNITY_EDITOR
+        UnityEditor.AssemblyReloadEvents.beforeAssemblyReload -= OnBeforeAssemblyReload;
+        UnityEditor.EditorApplication.playModeStateChanged -= OnPlayModeStateChanged;
+        UnityEditor.SceneManagement.EditorSceneManager.sceneClosing -= OnSceneClosing;
+#endif
         if (chunkManager != null)
         {
             chunkManager.Dispose();
+            chunkManager = null;
         }
 
         if (data != null)
         {
             data.Dispose();
+            data = null;
         }
     }
+
+#if UNITY_EDITOR
+    [UnityEditor.Callbacks.DidReloadScripts]
+    private static void RestoreTerrainAfterReload()
+    {
+        UnityEditor.EditorApplication.delayCall += () =>
+        {
+            foreach (TerrainManager terrain in FindObjectsByType<TerrainManager>(
+                FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                if (terrain.regenerateAfterReload)
+                {
+                    terrain.regenerateAfterReload = false;
+                    terrain.GenerateTerrain();
+                }
+            }
+        };
+    }
+
+    private void OnBeforeAssemblyReload()
+    {
+        regenerateAfterReload = data != null;
+        ReleaseResources();
+    }
+
+    private void OnPlayModeStateChanged(UnityEditor.PlayModeStateChange state)
+    {
+        if (state == UnityEditor.PlayModeStateChange.ExitingEditMode ||
+            state == UnityEditor.PlayModeStateChange.ExitingPlayMode)
+        {
+            ReleaseResources();
+        }
+    }
+
+    private void OnSceneClosing(UnityEngine.SceneManagement.Scene scene, bool removingScene)
+    {
+        if (gameObject.scene == scene)
+        {
+            ReleaseResources();
+        }
+    }
+#endif
 
     private void OnValidate()
     {
