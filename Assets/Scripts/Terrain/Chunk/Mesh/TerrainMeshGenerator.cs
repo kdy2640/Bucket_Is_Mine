@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Unity.Collections;
+using Unity.Jobs;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -9,6 +10,7 @@ public class TerrainMeshGenerator : IDisposable
     private NativeArray<Vector3Int> corners;
     private NativeArray<int> edgeCornerIndexes;
     private NativeArray<int> triangleTable;
+    private NativeArray<VertexAttributeDescriptor> vertexAttributes;
 
     public TerrainMeshGenerator()
     {
@@ -20,6 +22,11 @@ public class TerrainMeshGenerator : IDisposable
             0, 4, 1, 5, 2, 6, 3, 7
         }, Allocator.Persistent);
         triangleTable = new NativeArray<int>(MarchingTable.Triangles.Length, Allocator.Persistent);
+        vertexAttributes = new NativeArray<VertexAttributeDescriptor>(new[]
+        {
+            new VertexAttributeDescriptor(VertexAttribute.Position, VertexAttributeFormat.Float32, 3, 0),
+            new VertexAttributeDescriptor(VertexAttribute.Normal, VertexAttributeFormat.Float32, 3, 1)
+        }, Allocator.Persistent);
         for (int config = 0; config < MarchingTable.Triangles.GetLength(0); config++)
         {
             for (int edge = 0; edge < MarchingTable.Triangles.GetLength(1); edge++)
@@ -41,15 +48,39 @@ public class TerrainMeshGenerator : IDisposable
         {
             ChunkMeshInput input = new ChunkMeshInput(data, chunkCoords[i]);
             MeshBuilder builder = new MeshBuilder(isSmoothShading);
+            Mesh.MeshDataArray meshData = Mesh.AllocateWritableMeshData(1);
+            NativeArray<Bounds> boundsResult = new NativeArray<Bounds>(1, Allocator.TempJob);
+            JobHandle handle = default;
+            bool meshDataApplied = false;
             try
             {
-                MarchingCubesMesher mesher = new MarchingCubesMesher(
-                    input, corners, edgeCornerIndexes, triangleTable, threshold, isSmoothShading);
-                mesher.Build(ref builder);
-                meshes[i] = CreateMesh(ref builder, isSmoothShading);
+                BuildChunkMeshJob job = new BuildChunkMeshJob
+                {
+                    Mesher = new MarchingCubesMesher(
+                        input, corners, edgeCornerIndexes, triangleTable, threshold, isSmoothShading),
+                    Builder = builder,
+                    MeshData = meshData[0],
+                    VertexAttributes = vertexAttributes,
+                    BoundsResult = boundsResult
+                };
+                handle = job.Schedule();
+                handle.Complete();
+
+                Mesh mesh = new Mesh();
+                Mesh.ApplyAndDisposeWritableMeshData(meshData, mesh, MeshUpdateFlags.DontRecalculateBounds);
+                meshDataApplied = true;
+                mesh.bounds = boundsResult[0];
+                meshes[i] = mesh;
             }
             finally
             {
+                handle.Complete();
+                if (!meshDataApplied)
+                {
+                    meshData.Dispose();
+                }
+
+                boundsResult.Dispose();
                 builder.Dispose();
             }
         }
@@ -62,37 +93,6 @@ public class TerrainMeshGenerator : IDisposable
         corners.Dispose();
         edgeCornerIndexes.Dispose();
         triangleTable.Dispose();
-    }
-
-    private static Mesh CreateMesh(ref MeshBuilder builder, bool isSmoothShading)
-    {
-        Mesh mesh = new Mesh();
-        mesh.indexFormat = IndexFormat.UInt32;
-        mesh.SetVertices(builder.Vertices.AsArray());
-        mesh.SetIndices(builder.Triangles.AsArray(), MeshTopology.Triangles, 0, false, 0);
-        if (!isSmoothShading || builder.NeedsFaceNormals)
-        {
-            mesh.RecalculateNormals();
-        }
-
-        if (isSmoothShading)
-        {
-            if (builder.NeedsFaceNormals)
-            {
-                Vector3[] faceNormals = mesh.normals;
-                for (int i = 0; i < builder.Normals.Length; i++)
-                {
-                    if (builder.Normals[i].sqrMagnitude == 0f)
-                    {
-                        builder.Normals[i] = faceNormals[i];
-                    }
-                }
-            }
-
-            mesh.SetNormals(builder.Normals.AsArray());
-        }
-
-        mesh.RecalculateBounds();
-        return mesh;
+        vertexAttributes.Dispose();
     }
 }
