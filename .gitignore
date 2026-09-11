@@ -97,3 +97,7 @@ InitTestScene*.unity*
 
 # Auto-generated scenes by play mode tests
 /[Aa]ssets/[Ii]nit[Tt]est[Ss]cene*.unity*
+
+# Preserve vendor debug symbols shipped with DOTween.
+!/Assets/Plugins/Demigiant/DOTween/**/*.mdb
+!/Assets/Plugins/Demigiant/DOTween/**/*.mdb.meta
