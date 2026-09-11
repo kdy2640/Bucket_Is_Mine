@@ -57,6 +57,11 @@ public class TerrainManager : MonoBehaviour
     [ContextMenu("Regenerate Terrain")]
     public void GenerateTerrain()
     {
+        if (data != null)
+        {
+            data.Dispose();
+        }
+
         data = CreateTerrainData();
         generator = generator ?? new TerrainGenerator();
         generator.Generate(
@@ -115,7 +120,15 @@ public class TerrainManager : MonoBehaviour
 
     private TerrainData CreateTerrainData()
     {
-        return new TerrainData(width, densityFieldHeight, resolution);
+        return new TerrainData(width, densityFieldHeight, resolution, ChunkSize);
+    }
+
+    private void OnDestroy()
+    {
+        if (data != null)
+        {
+            data.Dispose();
+        }
     }
 
     private void OnValidate()

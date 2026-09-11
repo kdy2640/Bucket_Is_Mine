@@ -1,35 +1,106 @@
+using System;
+using System.Collections.Generic;
 using UnityEngine;
 
-public class TerrainData
+public class TerrainData : IDisposable
 {
-    public float[,,] Densities { get; private set; }
+    private readonly Dictionary<Vector3Int, ChunkTerrainData> chunks =
+        new Dictionary<Vector3Int, ChunkTerrainData>();
+
     public int Width { get; }
     public int DensityFieldHeight { get; }
     public float Resolution { get; }
+    public int ChunkSize { get; }
+    public Vector3Int ChunkCounts { get; }
 
-    public TerrainData(int width, int densityFieldHeight, float resolution)
+    public TerrainData(int width, int densityFieldHeight, float resolution, int chunkSize)
     {
         Width = Mathf.Max(1, width);
         DensityFieldHeight = Mathf.Max(1, densityFieldHeight);
         Resolution = Mathf.Max(0.001f, resolution);
-        ResetDensities();
+        ChunkSize = Mathf.Max(1, chunkSize);
+        ChunkCounts = new Vector3Int(
+            Mathf.CeilToInt((float)Width / ChunkSize),
+            Mathf.CeilToInt((float)DensityFieldHeight / ChunkSize),
+            Mathf.CeilToInt((float)Width / ChunkSize));
+
+        for (int x = 0; x < ChunkCounts.x; x++)
+        {
+            for (int y = 0; y < ChunkCounts.y; y++)
+            {
+                for (int z = 0; z < ChunkCounts.z; z++)
+                {
+                    Vector3Int chunkCoord = new Vector3Int(x, y, z);
+                    Vector3Int origin = chunkCoord * ChunkSize;
+                    Vector3Int cubeCount = new Vector3Int(
+                        Mathf.Min(ChunkSize, Width - origin.x),
+                        Mathf.Min(ChunkSize, DensityFieldHeight - origin.y),
+                        Mathf.Min(ChunkSize, Width - origin.z));
+
+                    // Only the last chunk on each axis owns the terrain's endpoint sample.
+                    Vector3Int sampleCount = cubeCount + new Vector3Int(
+                        x == ChunkCounts.x - 1 ? 1 : 0,
+                        y == ChunkCounts.y - 1 ? 1 : 0,
+                        z == ChunkCounts.z - 1 ? 1 : 0);
+                    chunks.Add(chunkCoord, new ChunkTerrainData(origin, cubeCount, sampleCount));
+                }
+            }
+        }
     }
 
     public void ResetDensities()
     {
-        Densities = new float[Width + 1, DensityFieldHeight + 1, Width + 1];
+        foreach (ChunkTerrainData chunk in chunks.Values)
+        {
+            var densities = chunk.Densities;
+            for (int i = 0; i < densities.Length; i++)
+            {
+                densities[i] = 0f;
+            }
+        }
+    }
+
+    // The returned struct borrows its array; TerrainData alone disposes it.
+    public ChunkTerrainData GetChunkData(Vector3Int chunkCoord)
+    {
+        return chunks[chunkCoord];
+    }
+
+    public void Dispose()
+    {
+        foreach (ChunkTerrainData chunk in chunks.Values)
+        {
+            chunk.Densities.Dispose();
+        }
+
+        chunks.Clear();
     }
 
     public float GetDensity(Vector3Int index)
     {
-        return IsValidIndex(index) ? Densities[index.x, index.y, index.z] : 0f;
+        if (!IsValidIndex(index))
+        {
+            return 0f;
+        }
+
+        Vector3Int chunkCoord = new Vector3Int(
+            Mathf.Min(index.x / ChunkSize, ChunkCounts.x - 1),
+            Mathf.Min(index.y / ChunkSize, ChunkCounts.y - 1),
+            Mathf.Min(index.z / ChunkSize, ChunkCounts.z - 1));
+        ChunkTerrainData chunk = chunks[chunkCoord];
+        return chunk.GetDensity(index - chunk.Origin);
     }
 
     public void SetDensity(Vector3Int index, float density)
     {
         if (IsValidIndex(index))
         {
-            Densities[index.x, index.y, index.z] = Mathf.Clamp01(density);
+            Vector3Int chunkCoord = new Vector3Int(
+                Mathf.Min(index.x / ChunkSize, ChunkCounts.x - 1),
+                Mathf.Min(index.y / ChunkSize, ChunkCounts.y - 1),
+                Mathf.Min(index.z / ChunkSize, ChunkCounts.z - 1));
+            ChunkTerrainData chunk = chunks[chunkCoord];
+            chunk.SetDensity(index - chunk.Origin, Mathf.Clamp01(density));
         }
     }
 

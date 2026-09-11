@@ -2,7 +2,7 @@ using UnityEngine;
 
 public class MarchingCubesMesher
 {
-    private readonly float[,,] densities;
+    private readonly TerrainData data;
     private readonly int width;
     private readonly int densityFieldHeight;
     private readonly float resolution;
@@ -26,31 +26,29 @@ public class MarchingCubesMesher
     };
 
     public MarchingCubesMesher(
-        float[,,] densities,
-        int width,
-        int densityFieldHeight,
-        float resolution,
+        TerrainData data,
         float threshold,
         bool isSmoothShading)
     {
-        this.densities = densities;
-        this.width = width;
-        this.densityFieldHeight = densityFieldHeight;
-        this.resolution = resolution;
+        this.data = data;
+        width = data.Width;
+        densityFieldHeight = data.DensityFieldHeight;
+        resolution = data.Resolution;
         this.threshold = threshold;
         this.isSmoothShading = isSmoothShading;
     }
 
-    public Mesh BuildChunkMesh(Vector3Int chunkCoord, int chunkSize)
+    public Mesh BuildChunkMesh(Vector3Int chunkCoord)
     {
         MeshBuilder builder = new MeshBuilder(isSmoothShading);
 
-        int startX = chunkCoord.x * chunkSize;
-        int startY = chunkCoord.y * chunkSize;
-        int startZ = chunkCoord.z * chunkSize;
-        int endX = Mathf.Min(startX + chunkSize, width);
-        int endY = Mathf.Min(startY + chunkSize, densityFieldHeight);
-        int endZ = Mathf.Min(startZ + chunkSize, width);
+        ChunkTerrainData chunk = data.GetChunkData(chunkCoord);
+        int startX = chunk.Origin.x;
+        int startY = chunk.Origin.y;
+        int startZ = chunk.Origin.z;
+        int endX = startX + chunk.CubeCount.x;
+        int endY = startY + chunk.CubeCount.y;
+        int endZ = startZ + chunk.CubeCount.z;
 
         for (int x = startX; x < endX; x++)
         {
@@ -74,7 +72,7 @@ public class MarchingCubesMesher
         for (int i = 0; i < 8; i++)
         {
             Vector3Int corner = new Vector3Int(x, y, z) + MarchingTable.Corners[i];
-            cubeCorners[i] = densities[corner.x, corner.y, corner.z];
+            cubeCorners[i] = data.GetDensity(corner);
         }
 
         return cubeCorners;
@@ -161,11 +159,14 @@ public class MarchingCubesMesher
 
         // At the field boundary the sample span is one cell, giving a one-sided difference.
         return new Vector3(
-            (densities[maxX, index.y, index.z] - densities[minX, index.y, index.z]) /
+            (data.GetDensity(new Vector3Int(maxX, index.y, index.z)) -
+             data.GetDensity(new Vector3Int(minX, index.y, index.z))) /
                 ((maxX - minX) * resolution),
-            (densities[index.x, maxY, index.z] - densities[index.x, minY, index.z]) /
+            (data.GetDensity(new Vector3Int(index.x, maxY, index.z)) -
+             data.GetDensity(new Vector3Int(index.x, minY, index.z))) /
                 ((maxY - minY) * resolution),
-            (densities[index.x, index.y, maxZ] - densities[index.x, index.y, minZ]) /
+            (data.GetDensity(new Vector3Int(index.x, index.y, maxZ)) -
+             data.GetDensity(new Vector3Int(index.x, index.y, minZ))) /
                 ((maxZ - minZ) * resolution));
     }
 }

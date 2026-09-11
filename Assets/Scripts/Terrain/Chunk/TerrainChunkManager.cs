@@ -78,30 +78,21 @@ public class TerrainChunkManager
         TerrainData data = owner.Data;
         ChunkData chunk = GetOrCreateChunk(chunkCoord);
         MarchingCubesMesher mesher = new MarchingCubesMesher(
-            data.Densities,
-            data.Width,
-            data.DensityFieldHeight,
-            data.Resolution,
+            data,
             owner.DensityThreshold,
             owner.IsSmoothShading);
 
-        SetChunkMesh(chunk, mesher.BuildChunkMesh(chunkCoord, owner.ChunkSize));
+        SetChunkMesh(chunk, mesher.BuildChunkMesh(chunkCoord));
     }
 
     private Vector3Int GetChunkCounts()
     {
-        TerrainData data = owner.Data;
-        int chunkSize = owner.ChunkSize;
-
-        return new Vector3Int(
-            Mathf.CeilToInt((float)data.Width / chunkSize),
-            Mathf.CeilToInt((float)data.DensityFieldHeight / chunkSize),
-            Mathf.CeilToInt((float)data.Width / chunkSize));
+        return owner.Data.ChunkCounts;
     }
 
     private Vector3Int CubeIndexToChunkCoord(Vector3Int cubeIndex)
     {
-        int chunkSize = owner.ChunkSize;
+        int chunkSize = owner.Data.ChunkSize;
         return new Vector3Int(
             cubeIndex.x / chunkSize,
             cubeIndex.y / chunkSize,
