@@ -125,6 +125,11 @@ public class TerrainManager : MonoBehaviour
 
     private void OnDestroy()
     {
+        if (chunkManager != null)
+        {
+            chunkManager.Dispose();
+        }
+
         if (data != null)
         {
             data.Dispose();

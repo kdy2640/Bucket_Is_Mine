@@ -1,54 +1,46 @@
+using Unity.Collections;
 using UnityEngine;
 
-public class MarchingCubesMesher
+internal struct MarchingCubesMesher
 {
-    private readonly TerrainData data;
+    private readonly ChunkMeshInput input;
     private readonly int width;
     private readonly int densityFieldHeight;
     private readonly float resolution;
     private readonly float threshold;
     private readonly bool isSmoothShading;
 
-    private static readonly int[,] EdgeCornerIndexes = new int[12, 2]
-    {
-        { 0, 1 },
-        { 1, 2 },
-        { 3, 2 },
-        { 0, 3 },
-        { 4, 5 },
-        { 5, 6 },
-        { 7, 6 },
-        { 4, 7 },
-        { 0, 4 },
-        { 1, 5 },
-        { 2, 6 },
-        { 3, 7 },
-    };
+    [ReadOnly] private NativeArray<Vector3Int> corners;
+    [ReadOnly] private NativeArray<int> edgeCornerIndexes;
+    [ReadOnly] private NativeArray<int> triangleTable;
 
     public MarchingCubesMesher(
-        TerrainData data,
+        ChunkMeshInput input,
+        NativeArray<Vector3Int> corners,
+        NativeArray<int> edgeCornerIndexes,
+        NativeArray<int> triangleTable,
         float threshold,
         bool isSmoothShading)
     {
-        this.data = data;
-        width = data.Width;
-        densityFieldHeight = data.DensityFieldHeight;
-        resolution = data.Resolution;
+        this.input = input;
+        this.corners = corners;
+        this.edgeCornerIndexes = edgeCornerIndexes;
+        this.triangleTable = triangleTable;
+        width = input.Width;
+        densityFieldHeight = input.Height;
+        resolution = input.Resolution;
         this.threshold = threshold;
         this.isSmoothShading = isSmoothShading;
     }
 
-    public Mesh BuildChunkMesh(Vector3Int chunkCoord)
+    public void Build(ref MeshBuilder builder)
     {
-        MeshBuilder builder = new MeshBuilder(isSmoothShading);
-
-        ChunkTerrainData chunk = data.GetChunkData(chunkCoord);
-        int startX = chunk.Origin.x;
-        int startY = chunk.Origin.y;
-        int startZ = chunk.Origin.z;
-        int endX = startX + chunk.CubeCount.x;
-        int endY = startY + chunk.CubeCount.y;
-        int endZ = startZ + chunk.CubeCount.z;
+        int startX = input.Origin.x;
+        int startY = input.Origin.y;
+        int startZ = input.Origin.z;
+        int endX = startX + input.CubeCount.x;
+        int endY = startY + input.CubeCount.y;
+        int endZ = startZ + input.CubeCount.z;
 
         for (int x = startX; x < endX; x++)
         {
@@ -56,29 +48,27 @@ public class MarchingCubesMesher
             {
                 for (int z = startZ; z < endZ; z++)
                 {
-                    float[] cubeCorners = GetCubeCorners(x, y, z);
-                    MarchCube(builder, new Vector3Int(x, y, z), cubeCorners);
+                    FixedList64Bytes<float> cubeCorners = GetCubeCorners(x, y, z);
+                    MarchCube(ref builder, new Vector3Int(x, y, z), cubeCorners);
                 }
             }
         }
-
-        return builder.ToMesh();
     }
 
-    private float[] GetCubeCorners(int x, int y, int z)
+    private FixedList64Bytes<float> GetCubeCorners(int x, int y, int z)
     {
-        float[] cubeCorners = new float[8];
+        FixedList64Bytes<float> cubeCorners = default;
 
         for (int i = 0; i < 8; i++)
         {
-            Vector3Int corner = new Vector3Int(x, y, z) + MarchingTable.Corners[i];
-            cubeCorners[i] = data.GetDensity(corner);
+            Vector3Int corner = new Vector3Int(x, y, z) + corners[i];
+            cubeCorners.Add(input.GetDensity(corner));
         }
 
         return cubeCorners;
     }
 
-    private void MarchCube(MeshBuilder builder, Vector3Int cubeIndex, float[] cubeCorners)
+    private void MarchCube(ref MeshBuilder builder, Vector3Int cubeIndex, FixedList64Bytes<float> cubeCorners)
     {
         int configIndex = GetConfigIndex(cubeCorners);
 
@@ -89,23 +79,23 @@ public class MarchingCubesMesher
 
         for (int edgeIndex = 0; edgeIndex < 15; edgeIndex += 3)
         {
-            if (MarchingTable.Triangles[configIndex, edgeIndex] == -1)
+            if (triangleTable[configIndex * 16 + edgeIndex] == -1)
             {
                 return;
             }
 
             Vector3 vertex0 = GetEdgeVertex(
-                cubeIndex, cubeCorners, MarchingTable.Triangles[configIndex, edgeIndex], out Vector3 normal0);
+                cubeIndex, cubeCorners, triangleTable[configIndex * 16 + edgeIndex], out Vector3 normal0);
             Vector3 vertex1 = GetEdgeVertex(
-                cubeIndex, cubeCorners, MarchingTable.Triangles[configIndex, edgeIndex + 1], out Vector3 normal1);
+                cubeIndex, cubeCorners, triangleTable[configIndex * 16 + edgeIndex + 1], out Vector3 normal1);
             Vector3 vertex2 = GetEdgeVertex(
-                cubeIndex, cubeCorners, MarchingTable.Triangles[configIndex, edgeIndex + 2], out Vector3 normal2);
+                cubeIndex, cubeCorners, triangleTable[configIndex * 16 + edgeIndex + 2], out Vector3 normal2);
 
             builder.AddTriangle(vertex0, vertex1, vertex2, normal0, normal1, normal2);
         }
     }
 
-    private int GetConfigIndex(float[] cubeCorners)
+    private int GetConfigIndex(FixedList64Bytes<float> cubeCorners)
     {
         int configIndex = 0;
 
@@ -121,14 +111,14 @@ public class MarchingCubesMesher
     }
 
     private Vector3 GetEdgeVertex(
-        Vector3Int cubeIndex, float[] cubeCorners, int edgeIndex, out Vector3 normal)
+        Vector3Int cubeIndex, FixedList64Bytes<float> cubeCorners, int edgeIndex, out Vector3 normal)
     {
-        int startCornerIndex = EdgeCornerIndexes[edgeIndex, 0];
-        int endCornerIndex = EdgeCornerIndexes[edgeIndex, 1];
+        int startCornerIndex = edgeCornerIndexes[edgeIndex * 2];
+        int endCornerIndex = edgeCornerIndexes[edgeIndex * 2 + 1];
 
         Vector3 position = (Vector3)cubeIndex * resolution;
-        Vector3 edgeStart = position + (Vector3)MarchingTable.Corners[startCornerIndex] * resolution;
-        Vector3 edgeEnd = position + (Vector3)MarchingTable.Corners[endCornerIndex] * resolution;
+        Vector3 edgeStart = position + (Vector3)corners[startCornerIndex] * resolution;
+        Vector3 edgeEnd = position + (Vector3)corners[endCornerIndex] * resolution;
 
         float startDensity = cubeCorners[startCornerIndex];
         float endDensity = cubeCorners[endCornerIndex];
@@ -139,8 +129,8 @@ public class MarchingCubesMesher
         normal = Vector3.zero;
         if (isSmoothShading)
         {
-            Vector3 startGradient = GetDensityGradient(cubeIndex + MarchingTable.Corners[startCornerIndex]);
-            Vector3 endGradient = GetDensityGradient(cubeIndex + MarchingTable.Corners[endCornerIndex]);
+            Vector3 startGradient = GetDensityGradient(cubeIndex + corners[startCornerIndex]);
+            Vector3 endGradient = GetDensityGradient(cubeIndex + corners[endCornerIndex]);
             // Higher density is inside the terrain, so the outward normal opposes the gradient.
             normal = -Vector3.Lerp(startGradient, endGradient, t).normalized;
         }
@@ -159,14 +149,14 @@ public class MarchingCubesMesher
 
         // At the field boundary the sample span is one cell, giving a one-sided difference.
         return new Vector3(
-            (data.GetDensity(new Vector3Int(maxX, index.y, index.z)) -
-             data.GetDensity(new Vector3Int(minX, index.y, index.z))) /
+            (input.GetDensity(new Vector3Int(maxX, index.y, index.z)) -
+             input.GetDensity(new Vector3Int(minX, index.y, index.z))) /
                 ((maxX - minX) * resolution),
-            (data.GetDensity(new Vector3Int(index.x, maxY, index.z)) -
-             data.GetDensity(new Vector3Int(index.x, minY, index.z))) /
+            (input.GetDensity(new Vector3Int(index.x, maxY, index.z)) -
+             input.GetDensity(new Vector3Int(index.x, minY, index.z))) /
                 ((maxY - minY) * resolution),
-            (data.GetDensity(new Vector3Int(index.x, index.y, maxZ)) -
-             data.GetDensity(new Vector3Int(index.x, index.y, minZ))) /
+            (input.GetDensity(new Vector3Int(index.x, index.y, maxZ)) -
+             input.GetDensity(new Vector3Int(index.x, index.y, minZ))) /
                 ((maxZ - minZ) * resolution));
     }
 }

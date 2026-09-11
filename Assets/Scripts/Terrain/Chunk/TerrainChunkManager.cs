@@ -1,15 +1,17 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class TerrainChunkManager
+public class TerrainChunkManager : System.IDisposable
 {
     private readonly TerrainManager owner;
+    private readonly TerrainMeshGenerator meshGenerator;
     private readonly Dictionary<Vector3Int, ChunkData> chunks =
         new Dictionary<Vector3Int, ChunkData>();
 
     public TerrainChunkManager(TerrainManager owner)
     {
         this.owner = owner;
+        meshGenerator = new TerrainMeshGenerator();
         RegisterExistingChunks();
     }
 
@@ -17,7 +19,7 @@ public class TerrainChunkManager
     {
         Vector3Int chunkCounts = GetChunkCounts();
         RemoveUnusedChunks(chunkCounts);
-        int regeneratedCount = 0;
+        List<Vector3Int> chunkCoords = new List<Vector3Int>();
 
         for (int x = 0; x < chunkCounts.x; x++)
         {
@@ -25,13 +27,12 @@ public class TerrainChunkManager
             {
                 for (int z = 0; z < chunkCounts.z; z++)
                 {
-                    RegenerateChunk(new Vector3Int(x, y, z));
-                    regeneratedCount++;
+                    chunkCoords.Add(new Vector3Int(x, y, z));
                 }
             }
         }
 
-        return regeneratedCount;
+        return RegenerateChunks(chunkCoords);
     }
 
     public int RegenerateChunksInBounds(Vector3Int minIndex, Vector3Int maxIndex)
@@ -56,7 +57,7 @@ public class TerrainChunkManager
 
         Vector3Int minChunk = CubeIndexToChunkCoord(minCube);
         Vector3Int maxChunk = CubeIndexToChunkCoord(maxCube);
-        int regeneratedCount = 0;
+        List<Vector3Int> chunkCoords = new List<Vector3Int>();
 
         for (int x = minChunk.x; x <= maxChunk.x; x++)
         {
@@ -64,25 +65,29 @@ public class TerrainChunkManager
             {
                 for (int z = minChunk.z; z <= maxChunk.z; z++)
                 {
-                    RegenerateChunk(new Vector3Int(x, y, z));
-                    regeneratedCount++;
+                    chunkCoords.Add(new Vector3Int(x, y, z));
                 }
             }
         }
 
-        return regeneratedCount;
+        return RegenerateChunks(chunkCoords);
     }
 
-    private void RegenerateChunk(Vector3Int chunkCoord)
+    public void Dispose()
     {
-        TerrainData data = owner.Data;
-        ChunkData chunk = GetOrCreateChunk(chunkCoord);
-        MarchingCubesMesher mesher = new MarchingCubesMesher(
-            data,
-            owner.DensityThreshold,
-            owner.IsSmoothShading);
+        meshGenerator.Dispose();
+    }
 
-        SetChunkMesh(chunk, mesher.BuildChunkMesh(chunkCoord));
+    private int RegenerateChunks(List<Vector3Int> chunkCoords)
+    {
+        Mesh[] meshes = meshGenerator.Generate(
+            owner.Data, chunkCoords, owner.DensityThreshold, owner.IsSmoothShading);
+        for (int i = 0; i < chunkCoords.Count; i++)
+        {
+            SetChunkMesh(GetOrCreateChunk(chunkCoords[i]), meshes[i]);
+        }
+
+        return chunkCoords.Count;
     }
 
     private Vector3Int GetChunkCounts()
