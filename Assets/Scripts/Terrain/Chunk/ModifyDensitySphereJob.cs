@@ -1,0 +1,52 @@
+using Unity.Burst;
+using Unity.Collections;
+using Unity.Jobs;
+using UnityEngine;
+
+[BurstCompile(FloatMode = FloatMode.Strict, FloatPrecision = FloatPrecision.High)]
+internal struct ModifyDensitySphereJob : IJob
+{
+    public NativeArray<float> Densities;
+    public Vector3Int Origin;
+    public Vector3Int SampleCount;
+    public Vector3Int MinIndex;
+    public Vector3Int MaxIndex;
+    public Vector3 LocalPosition;
+    public float Resolution;
+    public float Radius;
+    public float Power;
+    [WriteOnly] public NativeArray<Vector3Int> ChangedBounds;
+
+    public void Execute()
+    {
+        Vector3Int minChanged = new Vector3Int(int.MaxValue, int.MaxValue, int.MaxValue);
+        Vector3Int maxChanged = new Vector3Int(-1, -1, -1);
+        for (int x = MinIndex.x; x <= MaxIndex.x; x++)
+        {
+            for (int y = MinIndex.y; y <= MaxIndex.y; y++)
+            {
+                for (int z = MinIndex.z; z <= MaxIndex.z; z++)
+                {
+                    Vector3Int index = new Vector3Int(x, y, z);
+                    float distance = Vector3.Distance(new Vector3(x, y, z) * Resolution, LocalPosition);
+                    if (distance > Radius)
+                    {
+                        continue;
+                    }
+
+                    float t = 1f - distance / Radius;
+                    float falloff = t * t * (3f - 2f * t);
+                    Vector3Int localIndex = index - Origin;
+                    int flatIndex = (localIndex.x * SampleCount.y + localIndex.y) * SampleCount.z + localIndex.z;
+                    Densities[flatIndex] = Mathf.Clamp01(Densities[flatIndex] + Power * falloff);
+                    // Preserve the existing bounds even when clamping leaves density unchanged.
+                    minChanged = Vector3Int.Min(minChanged, index);
+                    maxChanged = Vector3Int.Max(maxChanged, index);
+                }
+            }
+        }
+
+        ChangedBounds[0] = minChanged;
+        ChangedBounds[1] = maxChanged;
+    }
+}

@@ -1,9 +1,15 @@
 using System;
 using System.Collections.Generic;
+using Unity.Collections;
+using Unity.Jobs;
+using Unity.Profiling;
 using UnityEngine;
 
 public class TerrainData : IDisposable
 {
+    private static readonly ProfilerMarker ModifyMarker = new ProfilerMarker("TerrainDensity.Modify");
+    private static readonly ProfilerMarker ScheduleMarker = new ProfilerMarker("TerrainDensity.Schedule");
+    private static readonly ProfilerMarker CompleteMarker = new ProfilerMarker("TerrainDensity.Complete");
     private readonly Dictionary<Vector3Int, ChunkTerrainData> chunks =
         new Dictionary<Vector3Int, ChunkTerrainData>();
 
@@ -124,6 +130,7 @@ public class TerrainData : IDisposable
         out Vector3Int minChangedIndex,
         out Vector3Int maxChangedIndex)
     {
+        using var modifyScope = ModifyMarker.Auto();
         minChangedIndex = new Vector3Int(Width, DensityFieldHeight, Width);
         maxChangedIndex = Vector3Int.zero;
 
@@ -134,34 +141,77 @@ public class TerrainData : IDisposable
 
         Vector3Int center = PositionToIndex(localPosition);
         int indexRadius = Mathf.CeilToInt(radius / Resolution);
-        bool changed = false;
-
-        for (int x = -indexRadius; x <= indexRadius; x++)
+        Vector3Int extent = Vector3Int.one * indexRadius;
+        Vector3Int minIndex = Vector3Int.Max(center - extent, Vector3Int.zero);
+        Vector3Int maxIndex = Vector3Int.Min(center + extent, minChangedIndex);
+        if (minIndex.x > maxIndex.x || minIndex.y > maxIndex.y || minIndex.z > maxIndex.z)
         {
-            for (int y = -indexRadius; y <= indexRadius; y++)
+            return false;
+        }
+
+        Vector3Int minChunk = new Vector3Int(
+            Mathf.Min(minIndex.x / ChunkSize, ChunkCounts.x - 1),
+            Mathf.Min(minIndex.y / ChunkSize, ChunkCounts.y - 1),
+            Mathf.Min(minIndex.z / ChunkSize, ChunkCounts.z - 1));
+        Vector3Int maxChunk = new Vector3Int(
+            Mathf.Min(maxIndex.x / ChunkSize, ChunkCounts.x - 1),
+            Mathf.Min(maxIndex.y / ChunkSize, ChunkCounts.y - 1),
+            Mathf.Min(maxIndex.z / ChunkSize, ChunkCounts.z - 1));
+        Vector3Int count = maxChunk - minChunk + Vector3Int.one;
+        int jobCount = count.x * count.y * count.z;
+        NativeArray<JobHandle> handles = new NativeArray<JobHandle>(jobCount, Allocator.Temp);
+        NativeArray<Vector3Int>[] changedBounds = new NativeArray<Vector3Int>[jobCount];
+
+        using (ScheduleMarker.Auto())
+        {
+            int i = 0;
+            for (int x = minChunk.x; x <= maxChunk.x; x++)
             {
-                for (int z = -indexRadius; z <= indexRadius; z++)
+                for (int y = minChunk.y; y <= maxChunk.y; y++)
                 {
-                    Vector3Int index = center + new Vector3Int(x, y, z);
-                    if (!IsValidIndex(index))
+                    for (int z = minChunk.z; z <= maxChunk.z; z++)
                     {
-                        continue;
+                        ChunkTerrainData chunk = chunks[new Vector3Int(x, y, z)];
+                        // Each Job owns a separate density array and result buffer.
+                        changedBounds[i] = new NativeArray<Vector3Int>(2, Allocator.TempJob);
+                        ModifyDensitySphereJob job = new ModifyDensitySphereJob
+                        {
+                            Densities = chunk.Densities,
+                            Origin = chunk.Origin,
+                            SampleCount = chunk.SampleCount,
+                            MinIndex = Vector3Int.Max(minIndex, chunk.Origin),
+                            MaxIndex = Vector3Int.Min(maxIndex, chunk.Origin + chunk.SampleCount - Vector3Int.one),
+                            LocalPosition = localPosition,
+                            Resolution = Resolution,
+                            Radius = radius,
+                            Power = power,
+                            ChangedBounds = changedBounds[i]
+                        };
+                        handles[i] = job.Schedule();
+                        i++;
                     }
-
-                    float distance = Vector3.Distance(IndexToPosition(index), localPosition);
-                    if (distance > radius)
-                    {
-                        continue;
-                    }
-
-                    float t = 1f - distance / radius;
-                    float falloff = t * t * (3f - 2f * t);
-                    SetDensity(index, GetDensity(index) + power * falloff);
-                    minChangedIndex = Vector3Int.Min(minChangedIndex, index);
-                    maxChangedIndex = Vector3Int.Max(maxChangedIndex, index);
-                    changed = true;
                 }
             }
+        }
+
+        using (CompleteMarker.Auto())
+        {
+            JobHandle.CompleteAll(handles);
+        }
+        handles.Dispose();
+
+        bool changed = false;
+        for (int i = 0; i < jobCount; i++)
+        {
+            Vector3Int min = changedBounds[i][0];
+            Vector3Int max = changedBounds[i][1];
+            if (min.x <= max.x)
+            {
+                minChangedIndex = Vector3Int.Min(minChangedIndex, min);
+                maxChangedIndex = Vector3Int.Max(maxChangedIndex, max);
+                changed = true;
+            }
+            changedBounds[i].Dispose();
         }
 
         return changed;
