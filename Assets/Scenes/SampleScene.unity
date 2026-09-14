@@ -245,10 +245,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a2fe6db9af8c80046851460dcdd53e08, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::TerrainManager
-  width: 256
+  width: 1024
   densityFieldHeight: 128
-  baseSurfaceHeight: 64
-  terrainAmplitude: 6
+  baseSurfaceHeight: 126
+  terrainAmplitude: 0
   resolution: 0.25
   noiseScale: 0.08
   densityThreshold: 0.5
@@ -640,9 +640,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerMiner
   anchor: {fileID: 1855205486}
-  anchorRadius: 1.5
+  anchorRadius: 2.5
   editPower: 0.35
-  editInterval: 0.1
+  editInterval: 0.05
 --- !u!54 &1026908060
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -880,6 +880,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::GameManager
   terrainManager: {fileID: 134620926}
   inputManager: {fileID: 1203957820}
+  gameLoopManager: {fileID: 0}
+  sceneController: {fileID: 0}
 --- !u!4 &1203957819
 Transform:
   m_ObjectHideFlags: 0
