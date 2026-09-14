@@ -32,8 +32,9 @@ public class TerrainGenerator
                     }
                     else
                     {
-                        float heightNoise =
-                            Mathf.PerlinNoise(x * noiseScale, z * noiseScale) * 2f - 1f;
+                        float heightNoise = terrainAmplitude == 0f
+                            ? 0f
+                            : Mathf.PerlinNoise(x * noiseScale, z * noiseScale) * 2f - 1f;
                         float surfaceY = baseSurfaceHeight + heightNoise * terrainAmplitude;
                         density = Mathf.Clamp01((surfaceY - y) * 0.1f + densityThreshold);
                     }

@@ -17,6 +17,8 @@ public class TerrainManager : MonoBehaviour
     [SerializeField] private Material mat;
     [SerializeField] private int chunkSize = 16;
     [SerializeField] private bool isSmoothShading;
+    [SerializeField] private Transform streamingTarget;
+    [SerializeField] private TerrainChunkStreamer streamer = new TerrainChunkStreamer();
 
     private TerrainData data;
     private TerrainGenerator generator;
@@ -30,6 +32,7 @@ public class TerrainManager : MonoBehaviour
     public int ChunkSize => Mathf.Max(1, chunkSize);
     public float DensityThreshold => densityThreshold;
     public Material Material => mat;
+    public bool IsInitialLoadComplete => data != null && streamer.IsInitialLoadComplete;
     public bool IsSmoothShading
     {
         get => isSmoothShading;
@@ -40,6 +43,18 @@ public class TerrainManager : MonoBehaviour
     {
         ClearParentMesh();
         GenerateTerrain();
+    }
+
+    private void Update()
+    {
+        streamer.Tick();
+    }
+
+    private void FixedUpdate()
+    {
+        // Run before player physics so a newly entered neighborhood has colliders.
+        // The normal load budget is processed only by Update.
+        streamer.UpdateTarget();
     }
 
     public void AddDensitySphere(Vector3 worldPosition, float radius, float power)
@@ -61,6 +76,11 @@ public class TerrainManager : MonoBehaviour
     [ContextMenu("Regenerate Terrain")]
     public void GenerateTerrain()
     {
+        streamer.Reset();
+        if (chunkManager != null)
+        {
+            chunkManager.ClearChunks();
+        }
         if (data != null)
         {
             data.Dispose();
@@ -76,7 +96,16 @@ public class TerrainManager : MonoBehaviour
             densityThreshold,
             use3DNoise);
         chunkManager = chunkManager ?? new TerrainChunkManager(this);
-        chunkManager.RegenerateAllChunks();
+        if (Application.isPlaying)
+        {
+            // Discard edit-mode preview chunks before starting the runtime queue.
+            chunkManager.ClearChunks();
+            streamer.Initialize(this, chunkManager, streamingTarget);
+        }
+        else
+        {
+            chunkManager.RegenerateAllChunks();
+        }
     }
 
     public void RegenerateAllChunks()
@@ -143,6 +172,7 @@ public class TerrainManager : MonoBehaviour
 
     private void ReleaseResources()
     {
+        streamer.Reset();
 #if UNITY_EDITOR
         UnityEditor.AssemblyReloadEvents.beforeAssemblyReload -= OnBeforeAssemblyReload;
         UnityEditor.EditorApplication.playModeStateChanged -= OnPlayModeStateChanged;

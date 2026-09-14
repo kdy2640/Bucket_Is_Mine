@@ -11,6 +11,20 @@ public sealed class PlayerController : MonoBehaviour
     public PlayerMiner PlayerMiner => playerMiner;
     public CameraController CameraController => cameraController;
 
+    public void SetGameplayActive(bool active)
+    {
+        playerMover.enabled = active;
+        playerMiner.enabled = active;
+        cameraController.enabled = active;
+        Rigidbody body = GetComponent<Rigidbody>();
+        if (!active && !body.isKinematic)
+        {
+            body.linearVelocity = Vector3.zero;
+            body.angularVelocity = Vector3.zero;
+        }
+        body.isKinematic = !active;
+    }
+
     private void Awake()
     {
         if (playerMover == null)

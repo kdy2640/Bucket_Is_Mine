@@ -18,7 +18,7 @@ public sealed class PlayerMiner : MonoBehaviour
     [SerializeField, Min(0.01f)]
     float editInterval = 0.1f;
 
-    TerrainManager terrainManager;
+    [SerializeField] private TerrainManager terrainManager;
     InputManager inputManager;
 
     float leftEditTimer;
@@ -121,8 +121,7 @@ public sealed class PlayerMiner : MonoBehaviour
 
     private void Start()
     {
-        terrainManager = GameManager.Instance?.TerrainManager;
-        inputManager = GameManager.Instance?.InputManager;
+        inputManager = GameManager.Instance.InputManager;
 
         playerController = GetComponent<PlayerController>();
         cameraController = playerController.CameraController;

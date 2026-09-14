@@ -5,12 +5,10 @@ public sealed class GameManager : MonoBehaviour
 {
     public static GameManager Instance { get; private set; }
 
-    [SerializeField] private TerrainManager terrainManager;
     [SerializeField] private InputManager inputManager;
     [SerializeField] private GameLoopManager gameLoopManager;
     [SerializeField] private SceneController sceneController;
 
-    public TerrainManager TerrainManager => terrainManager;
     public InputManager InputManager => inputManager;
     public GameLoopManager GameLoopManager => gameLoopManager;
     public SceneController SceneController => sceneController;
@@ -26,11 +24,6 @@ public sealed class GameManager : MonoBehaviour
 
         Instance = this;
         DontDestroyOnLoad(gameObject);
-
-        if (terrainManager == null)
-        {
-            terrainManager = FindFirstObjectByType<TerrainManager>();
-        }
 
         if (inputManager == null)
         {

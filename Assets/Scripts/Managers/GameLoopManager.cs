@@ -21,7 +21,8 @@ public class GameLoopManager : MonoBehaviour
         eventManager = new GameLoopEventManager();  
     } 
     public void PrepareReveal()
-    { 
+    {
+        timer = loopDuration;
         OnTick?.Invoke(Timer);
     }
     public void StartLoop()
@@ -50,6 +51,11 @@ public class GameLoopManager : MonoBehaviour
         if (!IsGameLoopScene) return;
         isRunning = false;
         eventManager.Invoke(GameLoopEventType.LoopEnded);
+    }
+
+    public void StopLoop()
+    {
+        isRunning = false;
     }
 
     public void SubscribeTick(Action<float> ev)

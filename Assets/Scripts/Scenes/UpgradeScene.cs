@@ -1,4 +1,5 @@
 using System.Collections;
+using UnityEngine;
 
 public class UpgradeScene : SceneBase
 {
@@ -7,14 +8,14 @@ public class UpgradeScene : SceneBase
 
     public override IEnumerator Enter()
     {
-        // 업그레이드 씬 진입 시 데이터 준비
-        yield return null;
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
+        yield break;
     }
 
     public override IEnumerator Exit()
     {
-        // 업그레이드 결과 확정
-        // RuntimeStat 계산 준비
-        yield return null;
+        yield break;
     }
+
 }

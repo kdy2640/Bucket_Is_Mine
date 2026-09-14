@@ -11,6 +11,36 @@ public class TerrainChunkManager : System.IDisposable
         new Dictionary<Vector3Int, ChunkData>();
     private readonly HashSet<Mesh> generatedMeshes = new HashSet<Mesh>();
 
+    public ICollection<Vector3Int> LoadedCoordinates => chunks.Keys;
+
+    public bool IsChunkLoaded(Vector3Int coordinate) => chunks.ContainsKey(coordinate);
+
+    public void LoadChunk(Vector3Int coordinate)
+    {
+        if (!chunks.ContainsKey(coordinate))
+        {
+            RegenerateChunks(new List<Vector3Int> { coordinate });
+        }
+    }
+
+    public void UnloadChunk(Vector3Int coordinate)
+    {
+        ChunkData chunk = chunks[coordinate];
+        SetChunkMesh(chunk, null);
+        chunk.gameObject.SetActive(false);
+        if (Application.isPlaying) Object.Destroy(chunk.gameObject);
+        else Object.DestroyImmediate(chunk.gameObject);
+        chunks.Remove(coordinate);
+    }
+
+    public void ClearChunks()
+    {
+        foreach (Vector3Int coordinate in new List<Vector3Int>(chunks.Keys))
+        {
+            UnloadChunk(coordinate);
+        }
+    }
+
     public TerrainChunkManager(TerrainManager owner)
     {
         this.owner = owner;
@@ -22,6 +52,11 @@ public class TerrainChunkManager : System.IDisposable
     {
         Vector3Int chunkCounts = GetChunkCounts();
         RemoveUnusedChunks(chunkCounts);
+        if (Application.isPlaying)
+        {
+            return RegenerateChunks(new List<Vector3Int>(chunks.Keys));
+        }
+
         List<Vector3Int> chunkCoords = new List<Vector3Int>();
 
         for (int x = 0; x < chunkCounts.x; x++)
@@ -68,7 +103,11 @@ public class TerrainChunkManager : System.IDisposable
             {
                 for (int z = minChunk.z; z <= maxChunk.z; z++)
                 {
-                    chunkCoords.Add(new Vector3Int(x, y, z));
+                    Vector3Int coordinate = new Vector3Int(x, y, z);
+                    if (!Application.isPlaying || chunks.ContainsKey(coordinate))
+                    {
+                        chunkCoords.Add(coordinate);
+                    }
                 }
             }
         }
@@ -242,19 +281,7 @@ public class TerrainChunkManager : System.IDisposable
 
         foreach (Vector3Int chunkCoord in unusedChunkCoords)
         {
-            ChunkData chunk = chunks[chunkCoord];
-            GameObject chunkObject = chunk.gameObject;
-            SetChunkMesh(chunk, null);
-            chunks.Remove(chunkCoord);
-
-            if (Application.isPlaying)
-            {
-                Object.Destroy(chunkObject);
-            }
-            else
-            {
-                Object.DestroyImmediate(chunkObject);
-            }
+            UnloadChunk(chunkCoord);
         }
     }
 }
