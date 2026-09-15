@@ -21,6 +21,7 @@ public sealed class TerrainChunkStreamer
     // 스트리밍 대상과 지형 관리 참조
     private TerrainManager owner;
     private TerrainChunkRegistry registry;
+    private TerrainGridGeometry grid;
     private Transform target;
     // 대상 청크, 축별 활성 범위와 월드 기준 청크 크기
     private Vector3Int targetCoordinate;
@@ -34,24 +35,16 @@ public sealed class TerrainChunkStreamer
     public int PendingActivationCount => pendingActivations.Count;
 
     // 대상과 청크 크기로 활성 범위를 계산하고 주변 청크와 초기 대기열을 준비한다.
-    public void Initialize(TerrainManager terrain, TerrainChunkRegistry registry, Transform player)
+    public void Initialize(TerrainManager terrain, TerrainChunkRegistry registry, TerrainGridGeometry grid, Transform player)
     {
         Reset();
         owner = terrain;
         this.registry = registry;
+        this.grid = grid;
         target = player;
-        chunkWorldSize = owner.transform.lossyScale * (owner.Data.ChunkSize * owner.Data.Resolution);
-        chunkWorldSize = new Vector3(
-            Mathf.Abs(chunkWorldSize.x), Mathf.Abs(chunkWorldSize.y), Mathf.Abs(chunkWorldSize.z));
-        loadRadius = new Vector3Int(
-            Mathf.Max(1, Mathf.CeilToInt(loadDistance / chunkWorldSize.x)),
-            Mathf.Max(1, Mathf.CeilToInt(loadDistance / chunkWorldSize.y)),
-            Mathf.Max(1, Mathf.CeilToInt(loadDistance / chunkWorldSize.z)));
-        float releaseDistance = Mathf.Max(loadDistance, unloadDistance);
-        unloadRadius = new Vector3Int(
-            Mathf.Max(loadRadius.x + 1, Mathf.CeilToInt(releaseDistance / chunkWorldSize.x)),
-            Mathf.Max(loadRadius.y + 1, Mathf.CeilToInt(releaseDistance / chunkWorldSize.y)),
-            Mathf.Max(loadRadius.z + 1, Mathf.CeilToInt(releaseDistance / chunkWorldSize.z)));
+        chunkWorldSize = grid.GetChunkWorldSize(owner.transform.lossyScale);
+        grid.GetStreamingRadii(
+            loadDistance, unloadDistance, chunkWorldSize, out loadRadius, out unloadRadius);
         initialized = true;
         targetCoordinate = GetTargetCoordinate();
         ActivateImmediateNeighbors();
@@ -111,22 +104,15 @@ public sealed class TerrainChunkStreamer
     private Vector3Int GetTargetCoordinate()
     {
         Vector3 position = owner.transform.InverseTransformPoint(target.position);
-        float size = owner.Data.ChunkSize * owner.Data.Resolution;
-        Vector3Int coordinate = new Vector3Int(
-            Mathf.FloorToInt(position.x / size),
-            Mathf.FloorToInt(position.y / size),
-            Mathf.FloorToInt(position.z / size));
-        // A spawn above the field must still prepare the closest ground immediately.
-        return Vector3Int.Min(Vector3Int.Max(coordinate, Vector3Int.zero),
-            owner.Data.ChunkCounts - Vector3Int.one);
+        return grid.LocalPositionToChunkCoord(position);
     }
 
     // 대상 청크와 각 축으로 한 칸 이내인 이웃 청크를 즉시 활성화한다.
     private void ActivateImmediateNeighbors()
     {
-        Vector3Int min = Vector3Int.Max(targetCoordinate - Vector3Int.one, Vector3Int.zero);
-        Vector3Int max = Vector3Int.Min(
-            targetCoordinate + Vector3Int.one, owner.Data.ChunkCounts - Vector3Int.one);
+        grid.GetClampedChunkBounds(
+            targetCoordinate, Vector3Int.one,
+            out Vector3Int min, out Vector3Int max);
         for (int x = min.x; x <= max.x; x++)
         {
             for (int y = min.y; y <= max.y; y++)
@@ -145,11 +131,8 @@ public sealed class TerrainChunkStreamer
         coordinates.Clear();
         foreach (Vector3Int coordinate in registry.ChunkCoordinates)
         {
-            Vector3Int offset = coordinate - targetCoordinate;
             if (registry.IsChunkActive(coordinate) &&
-                (Mathf.Abs(offset.x) > unloadRadius.x ||
-                Mathf.Abs(offset.y) > unloadRadius.y ||
-                Mathf.Abs(offset.z) > unloadRadius.z))
+                grid.IsOutsideRadius(coordinate, targetCoordinate, unloadRadius))
             {
                 coordinates.Add(coordinate);
             }
@@ -161,9 +144,9 @@ public sealed class TerrainChunkStreamer
 
         pendingActivations.Clear();
         coordinates.Clear();
-        Vector3Int min = Vector3Int.Max(targetCoordinate - loadRadius, Vector3Int.zero);
-        Vector3Int max = Vector3Int.Min(
-            targetCoordinate + loadRadius, owner.Data.ChunkCounts - Vector3Int.one);
+        grid.GetClampedChunkBounds(
+            targetCoordinate, loadRadius,
+            out Vector3Int min, out Vector3Int max);
         for (int x = min.x; x <= max.x; x++)
         {
             for (int y = min.y; y <= max.y; y++)
@@ -179,8 +162,8 @@ public sealed class TerrainChunkStreamer
             }
         }
         coordinates.Sort((a, b) =>
-            Vector3.Scale(a - targetCoordinate, chunkWorldSize).sqrMagnitude.CompareTo(
-                Vector3.Scale(b - targetCoordinate, chunkWorldSize).sqrMagnitude));
+            grid.GetSquaredWorldDistance(a, targetCoordinate, chunkWorldSize).CompareTo(
+                grid.GetSquaredWorldDistance(b, targetCoordinate, chunkWorldSize)));
         foreach (Vector3Int coordinate in coordinates)
         {
             pendingActivations.Enqueue(coordinate);

@@ -11,8 +11,8 @@ public class TerrainChunkRegistry : System.IDisposable
     private readonly TerrainManager owner;
     private static readonly ProfilerMarker ColliderMarker = new ProfilerMarker("TerrainMesh.Collider");
     // 등록된 청크와 직접 생성하여 해제해야 하는 메시
-    private readonly Dictionary<Vector3Int, ChunkData> chunks =
-        new Dictionary<Vector3Int, ChunkData>();
+    private readonly Dictionary<Vector3Int, ChunkObject> chunks =
+        new Dictionary<Vector3Int, ChunkObject>();
     private readonly HashSet<Mesh> generatedMeshes = new HashSet<Mesh>();
 
     public ICollection<Vector3Int> ChunkCoordinates => chunks.Keys;
@@ -47,7 +47,7 @@ public class TerrainChunkRegistry : System.IDisposable
                 continue;
             }
 
-            chunks[chunkCoord] = new ChunkData
+            chunks[chunkCoord] = new ChunkObject
             {
                 gameObject = child.gameObject,
                 meshFilter = meshFilter,
@@ -97,9 +97,9 @@ public class TerrainChunkRegistry : System.IDisposable
     #region 청크 생성 및 메시 교체
 
     // 등록된 청크를 반환하거나 지형의 레이어·태그·재질을 사용하는 청크를 생성한다.
-    public ChunkData GetOrCreateChunk(Vector3Int chunkCoord)
+    public ChunkObject GetOrCreateChunk(Vector3Int chunkCoord)
     {
-        if (chunks.TryGetValue(chunkCoord, out ChunkData chunk))
+        if (chunks.TryGetValue(chunkCoord, out ChunkObject chunk))
         {
             return chunk;
         }
@@ -111,7 +111,7 @@ public class TerrainChunkRegistry : System.IDisposable
         chunkObject.layer = owner.gameObject.layer;
         chunkObject.tag = owner.gameObject.tag;
 
-        chunk = new ChunkData
+        chunk = new ChunkObject
         {
             gameObject = chunkObject,
             meshFilter = chunkObject.AddComponent<MeshFilter>(),
@@ -125,7 +125,7 @@ public class TerrainChunkRegistry : System.IDisposable
     }
 
     // 렌더링 메시와 충돌 메시를 함께 교체하고 이전에 생성한 메시를 해제한다.
-    public void SetChunkMesh(ChunkData chunk, Mesh mesh)
+    public void SetChunkMesh(ChunkObject chunk, Mesh mesh)
     {
         Mesh oldMesh = chunk.meshFilter.sharedMesh;
         chunk.meshFilter.sharedMesh = mesh;
@@ -191,7 +191,7 @@ public class TerrainChunkRegistry : System.IDisposable
     // 청크의 메시와 오브젝트를 제거하고 관리 목록에서 제외한다.
     private void DestroyChunk(Vector3Int coordinate)
     {
-        ChunkData chunk = chunks[coordinate];
+        ChunkObject chunk = chunks[coordinate];
         SetChunkMesh(chunk, null);
         chunk.gameObject.SetActive(false);
         if (Application.isPlaying) Object.Destroy(chunk.gameObject);

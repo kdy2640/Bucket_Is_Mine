@@ -13,8 +13,8 @@ public class TerrainData : IDisposable
     private static readonly ProfilerMarker ScheduleMarker = new ProfilerMarker("TerrainDensity.Schedule");
     private static readonly ProfilerMarker CompleteMarker = new ProfilerMarker("TerrainDensity.Complete");
     // 이 데이터가 소유하는 청크별 밀도 배열
-    private readonly Dictionary<Vector3Int, ChunkTerrainData> chunks =
-        new Dictionary<Vector3Int, ChunkTerrainData>();
+    private readonly Dictionary<Vector3Int, ChunkDensityData> chunks =
+        new Dictionary<Vector3Int, ChunkDensityData>();
 
     // 전체 격자 크기와 청크 분할 정보
     public int Width { get; }
@@ -24,12 +24,12 @@ public class TerrainData : IDisposable
     public Vector3Int ChunkCounts { get; }
 
     // 지형 크기에 맞춰 청크를 나누고 각 청크의 밀도 배열을 할당한다.
-    public TerrainData(int width, int densityFieldHeight, float resolution, int chunkSize)
+    public TerrainData(TerrainGridGeometry grid)
     {
-        Width = Mathf.Max(1, width);
-        DensityFieldHeight = Mathf.Max(1, densityFieldHeight);
-        Resolution = Mathf.Max(0.001f, resolution);
-        ChunkSize = Mathf.Max(1, chunkSize);
+        Width = grid.Width;
+        DensityFieldHeight = grid.DensityFieldHeight;
+        Resolution = grid.Resolution;
+        ChunkSize = grid.ChunkSize;
         ChunkCounts = new Vector3Int(
             Mathf.CeilToInt((float)Width / ChunkSize),
             Mathf.CeilToInt((float)DensityFieldHeight / ChunkSize),
@@ -53,16 +53,18 @@ public class TerrainData : IDisposable
                         x == ChunkCounts.x - 1 ? 1 : 0,
                         y == ChunkCounts.y - 1 ? 1 : 0,
                         z == ChunkCounts.z - 1 ? 1 : 0);
-                    chunks.Add(chunkCoord, new ChunkTerrainData(origin, cubeCount, sampleCount));
+                    chunks.Add(chunkCoord, new ChunkDensityData(origin, cubeCount, sampleCount));
                 }
             }
         }
+
+        grid.Initialize(this);
     }
 
     // 모든 청크의 밀도를 0으로 초기화한다.
     public void ResetDensities()
     {
-        foreach (ChunkTerrainData chunk in chunks.Values)
+        foreach (ChunkDensityData chunk in chunks.Values)
         {
             var densities = chunk.Densities;
             for (int i = 0; i < densities.Length; i++)
@@ -74,7 +76,7 @@ public class TerrainData : IDisposable
 
     // 좌표에 해당하는 청크 데이터를 반환한다.
     // 반환된 배열은 빌려 쓰는 참조이며 해제는 TerrainData가 담당한다.
-    public ChunkTerrainData GetChunkData(Vector3Int chunkCoord)
+    public ChunkDensityData GetChunkData(Vector3Int chunkCoord)
     {
         return chunks[chunkCoord];
     }
@@ -82,7 +84,7 @@ public class TerrainData : IDisposable
     // 소유한 모든 청크의 네이티브 밀도 배열을 해제한다.
     public void Dispose()
     {
-        foreach (ChunkTerrainData chunk in chunks.Values)
+        foreach (ChunkDensityData chunk in chunks.Values)
         {
             chunk.Densities.Dispose();
         }
@@ -102,7 +104,7 @@ public class TerrainData : IDisposable
             Mathf.Min(index.x / ChunkSize, ChunkCounts.x - 1),
             Mathf.Min(index.y / ChunkSize, ChunkCounts.y - 1),
             Mathf.Min(index.z / ChunkSize, ChunkCounts.z - 1));
-        ChunkTerrainData chunk = chunks[chunkCoord];
+        ChunkDensityData chunk = chunks[chunkCoord];
         return chunk.GetDensity(index - chunk.Origin);
     }
 
@@ -115,7 +117,7 @@ public class TerrainData : IDisposable
                 Mathf.Min(index.x / ChunkSize, ChunkCounts.x - 1),
                 Mathf.Min(index.y / ChunkSize, ChunkCounts.y - 1),
                 Mathf.Min(index.z / ChunkSize, ChunkCounts.z - 1));
-            ChunkTerrainData chunk = chunks[chunkCoord];
+            ChunkDensityData chunk = chunks[chunkCoord];
             chunk.SetDensity(index - chunk.Origin, Mathf.Clamp01(density));
         }
     }
@@ -184,7 +186,7 @@ public class TerrainData : IDisposable
                 {
                     for (int z = minChunk.z; z <= maxChunk.z; z++)
                     {
-                        ChunkTerrainData chunk = chunks[new Vector3Int(x, y, z)];
+                        ChunkDensityData chunk = chunks[new Vector3Int(x, y, z)];
                         // Each Job owns a separate density array and result buffer.
                         changedBounds[i] = new NativeArray<Vector3Int>(2, Allocator.TempJob);
                         ModifyDensitySphereJob job = new ModifyDensitySphereJob

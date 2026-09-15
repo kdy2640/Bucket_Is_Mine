@@ -8,6 +8,9 @@ public class TerrainChunkManager : System.IDisposable
 {
     #region 필드 및 속성
 
+    [Header("지형 격자")]
+    [SerializeField] private TerrainGridGeometry grid = new TerrainGridGeometry();
+
     [Header("청크 스트리밍")]
     [SerializeField] private TerrainChunkStreamer streamer = new TerrainChunkStreamer();
 
@@ -17,6 +20,7 @@ public class TerrainChunkManager : System.IDisposable
     private TerrainMeshGenerator meshGenerator;
 
     public TerrainChunkRegistry Registry { get; private set; }
+    public TerrainGridGeometry Grid => grid;
     public TerrainChunkStreamer Streamer => streamer;
 
     #endregion
@@ -71,7 +75,7 @@ public class TerrainChunkManager : System.IDisposable
             yield return null;
         }
 
-        streamer.Initialize(owner, Registry, streamingTarget);
+        streamer.Initialize(owner, Registry, grid, streamingTarget);
     }
 
     // 지형 범위 밖 청크를 제거한 뒤 전체 청크 메시를 다시 생성한다.
@@ -104,20 +108,9 @@ public class TerrainChunkManager : System.IDisposable
             return 0;
         }
 
-        // Gradient normals also depend on density samples one cell beyond each corner.
-        int normalPadding = owner.IsSmoothShading ? 1 : 0;
-        Vector3Int minCube = new Vector3Int(
-            Mathf.Clamp(minIndex.x - 1 - normalPadding, 0, data.Width - 1),
-            Mathf.Clamp(minIndex.y - 1 - normalPadding, 0, data.DensityFieldHeight - 1),
-            Mathf.Clamp(minIndex.z - 1 - normalPadding, 0, data.Width - 1));
-
-        Vector3Int maxCube = new Vector3Int(
-            Mathf.Clamp(maxIndex.x + normalPadding, 0, data.Width - 1),
-            Mathf.Clamp(maxIndex.y + normalPadding, 0, data.DensityFieldHeight - 1),
-            Mathf.Clamp(maxIndex.z + normalPadding, 0, data.Width - 1));
-
-        Vector3Int minChunk = CubeIndexToChunkCoord(minCube);
-        Vector3Int maxChunk = CubeIndexToChunkCoord(maxCube);
+        grid.GetAffectedChunkBounds(
+            minIndex, maxIndex, owner.IsSmoothShading,
+            out Vector3Int minChunk, out Vector3Int maxChunk);
         List<Vector3Int> chunkCoords = new List<Vector3Int>();
 
         for (int x = minChunk.x; x <= maxChunk.x; x++)
@@ -160,17 +153,7 @@ public class TerrainChunkManager : System.IDisposable
     // 현재 밀도 데이터의 축별 청크 개수를 반환한다.
     private Vector3Int GetChunkCounts()
     {
-        return owner.Data.ChunkCounts;
-    }
-
-    // 전체 격자의 큐브 좌표를 해당 큐브가 속한 청크 좌표로 변환한다.
-    private Vector3Int CubeIndexToChunkCoord(Vector3Int cubeIndex)
-    {
-        int chunkSize = owner.Data.ChunkSize;
-        return new Vector3Int(
-            cubeIndex.x / chunkSize,
-            cubeIndex.y / chunkSize,
-            cubeIndex.z / chunkSize);
+        return grid.ChunkCounts;
     }
 
     #endregion

@@ -6,16 +6,9 @@ using UnityEngine.Serialization;
 [DisallowMultipleComponent]
 public class TerrainManager : MonoBehaviour
 {
-    [Header("밀도 격자 크기")]
-    [SerializeField] private int width = 30;
-    [SerializeField, Min(1)] private int densityFieldHeight = 20;
-
     [Header("표면 높이와 변화 폭")]
     [SerializeField, Min(0f)] private float baseSurfaceHeight = 5f;
     [SerializeField, Min(0f)] private float terrainAmplitude = 5f;
-
-    [Header("밀도 샘플 간격")]
-    [SerializeField] private float resolution = 1f;
 
     [Header("노이즈와 표면 판정")]
     [SerializeField] private float noiseScale = 1f;
@@ -25,9 +18,6 @@ public class TerrainManager : MonoBehaviour
 
     [Header("지형 재질")]
     [SerializeField] private Material mat;
-
-    [Header("청크 크기")]
-    [SerializeField] private int chunkSize = 16;
 
     [Header("메시 셰이딩")]
     [SerializeField] private bool isSmoothShading;
@@ -43,7 +33,7 @@ public class TerrainManager : MonoBehaviour
 
     // 청크 생성과 외부 조회에 사용하는 지형 상태
     public TerrainData Data => data;
-    public int ChunkSize => Mathf.Max(1, chunkSize);
+    public int ChunkSize => chunkManager.Grid.ChunkSize;
     public float DensityThreshold => densityThreshold;
     public Material Material => mat;
     public bool IsInitialLoadComplete => data != null && chunkManager.Streamer.IsInitialLoadComplete;
@@ -164,7 +154,7 @@ public class TerrainManager : MonoBehaviour
     // 현재 격자 설정으로 밀도 데이터를 생성한다.
     private TerrainData CreateTerrainData()
     {
-        return new TerrainData(width, densityFieldHeight, resolution, ChunkSize);
+        return new TerrainData(chunkManager.Grid);
     }
 
     // 오브젝트가 파괴될 때 지형이 소유한 자원을 해제한다.

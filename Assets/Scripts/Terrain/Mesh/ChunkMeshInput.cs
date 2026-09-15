@@ -56,7 +56,7 @@ internal struct ChunkMeshInput
     // 현재 청크와 표면·노멀 계산에 필요한 이웃 청크의 밀도 배열을 연결한다.
     public ChunkMeshInput(TerrainData data, Vector3Int chunkCoord)
     {
-        ChunkTerrainData chunk = data.GetChunkData(chunkCoord);
+        ChunkDensityData chunk = data.GetChunkData(chunkCoord);
         Origin = chunk.Origin;
         CubeCount = chunk.CubeCount;
         Width = data.Width;
