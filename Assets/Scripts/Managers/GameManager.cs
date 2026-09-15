@@ -9,6 +9,10 @@ public sealed class GameManager : MonoBehaviour
     [SerializeField] private GameLoopManager gameLoopManager;
     [SerializeField] private SceneController sceneController;
 
+    public StockManager StockManager { get; private set; }
+    public UpgradeManager Upgrade { get; private set; }
+    public UtilityManager Utility { get; private set; }
+
     public InputManager InputManager => inputManager;
     public GameLoopManager GameLoopManager => gameLoopManager;
     public SceneController SceneController => sceneController;
@@ -24,6 +28,10 @@ public sealed class GameManager : MonoBehaviour
 
         Instance = this;
         DontDestroyOnLoad(gameObject);
+
+        StockManager = GetComponent<StockManager>();
+        Upgrade = GetComponent<UpgradeManager>();
+        Utility = GetComponentInChildren<UtilityManager>(true);
 
         if (inputManager == null)
         {
