@@ -20,7 +20,7 @@ public sealed class TerrainChunkStreamer
     private readonly List<Vector3Int> coordinates = new List<Vector3Int>();
     // 스트리밍 대상과 지형 관리 참조
     private TerrainManager owner;
-    private TerrainChunkManager chunkManager;
+    private TerrainChunkRegistry registry;
     private Transform target;
     // 대상 청크, 축별 활성 범위와 월드 기준 청크 크기
     private Vector3Int targetCoordinate;
@@ -34,11 +34,11 @@ public sealed class TerrainChunkStreamer
     public int PendingActivationCount => pendingActivations.Count;
 
     // 대상과 청크 크기로 활성 범위를 계산하고 주변 청크와 초기 대기열을 준비한다.
-    public void Initialize(TerrainManager terrain, TerrainChunkManager manager, Transform player)
+    public void Initialize(TerrainManager terrain, TerrainChunkRegistry registry, Transform player)
     {
         Reset();
         owner = terrain;
-        chunkManager = manager;
+        this.registry = registry;
         target = player;
         chunkWorldSize = owner.transform.lossyScale * (owner.Data.ChunkSize * owner.Data.Resolution);
         chunkWorldSize = new Vector3(
@@ -71,7 +71,7 @@ public sealed class TerrainChunkStreamer
         int count = Mathf.Min(Mathf.Max(1, maxChunkActivationsPerFrame), pendingActivations.Count);
         for (int i = 0; i < count; i++)
         {
-            chunkManager.SetChunkActive(pendingActivations.Dequeue(), true);
+            registry.SetChunkActive(pendingActivations.Dequeue(), true);
         }
 
         if (pendingActivations.Count == 0)
@@ -133,7 +133,7 @@ public sealed class TerrainChunkStreamer
             {
                 for (int z = min.z; z <= max.z; z++)
                 {
-                    chunkManager.SetChunkActive(new Vector3Int(x, y, z), true);
+                    registry.SetChunkActive(new Vector3Int(x, y, z), true);
                 }
             }
         }
@@ -143,10 +143,10 @@ public sealed class TerrainChunkStreamer
     private void RefreshActivationCoordinates()
     {
         coordinates.Clear();
-        foreach (Vector3Int coordinate in chunkManager.ChunkCoordinates)
+        foreach (Vector3Int coordinate in registry.ChunkCoordinates)
         {
             Vector3Int offset = coordinate - targetCoordinate;
-            if (chunkManager.IsChunkActive(coordinate) &&
+            if (registry.IsChunkActive(coordinate) &&
                 (Mathf.Abs(offset.x) > unloadRadius.x ||
                 Mathf.Abs(offset.y) > unloadRadius.y ||
                 Mathf.Abs(offset.z) > unloadRadius.z))
@@ -156,7 +156,7 @@ public sealed class TerrainChunkStreamer
         }
         foreach (Vector3Int coordinate in coordinates)
         {
-            chunkManager.SetChunkActive(coordinate, false);
+            registry.SetChunkActive(coordinate, false);
         }
 
         pendingActivations.Clear();
@@ -171,7 +171,7 @@ public sealed class TerrainChunkStreamer
                 for (int z = min.z; z <= max.z; z++)
                 {
                     Vector3Int coordinate = new Vector3Int(x, y, z);
-                    if (!chunkManager.IsChunkActive(coordinate))
+                    if (!registry.IsChunkActive(coordinate))
                     {
                         coordinates.Add(coordinate);
                     }
