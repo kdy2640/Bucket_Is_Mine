@@ -4,17 +4,22 @@ using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Rendering;
 
+// 청크의 정점·노멀·삼각형을 모으고 Unity 메시 버퍼로 옮기는 작업용 구조체다.
 internal struct MeshBuilder : IDisposable
 {
+    // 정점 중복 제거와 면 노멀 계산용 작업 데이터
     private NativeHashMap<Vector3, int> vertexDict;
     private NativeList<Vector3> faceNormals;
     private readonly bool isSmoothShading;
 
+    // 완성할 메시의 정점·노멀·삼각형 버퍼
     public NativeList<Vector3> Vertices;
     public NativeList<Vector3> Normals;
     public NativeList<int> Triangles;
+    // 밀도 기울기가 0인 정점의 면 노멀 보완 여부
     public bool NeedsFaceNormals;
 
+    // 셰이딩 방식을 저장하고 메시 조립에 필요한 임시 네이티브 버퍼를 할당한다.
     public MeshBuilder(bool isSmoothShading)
     {
         this.isSmoothShading = isSmoothShading;
@@ -26,6 +31,7 @@ internal struct MeshBuilder : IDisposable
         NeedsFaceNormals = false;
     }
 
+    // 세 정점을 등록하고 지형 표면 방향에 맞는 순서로 삼각형 인덱스를 추가한다.
     public void AddTriangle(
         Vector3 vertex0, Vector3 vertex1, Vector3 vertex2,
         Vector3 normal0, Vector3 normal1, Vector3 normal2)
@@ -39,6 +45,7 @@ internal struct MeshBuilder : IDisposable
         Triangles.Add(index1);
     }
 
+    // 정점 조회용 맵과 정점·노멀·삼각형 버퍼를 해제한다.
     public void Dispose()
     {
         vertexDict.Dispose();
@@ -48,6 +55,7 @@ internal struct MeshBuilder : IDisposable
         Triangles.Dispose();
     }
 
+    // 평면 셰이딩의 노멀을 계산하거나 밀도 기울기로 구하지 못한 노멀을 보완한다.
     public void CompleteNormals()
     {
         if (isSmoothShading && !NeedsFaceNormals)
@@ -86,6 +94,7 @@ internal struct MeshBuilder : IDisposable
         }
     }
 
+    // 정점·노멀·인덱스와 서브메시 정보를 기록하고 정점들을 감싸는 경계 상자를 반환한다.
     public Bounds WriteMeshData(
         Mesh.MeshData meshData,
         NativeArray<VertexAttributeDescriptor> vertexAttributes)
@@ -119,6 +128,7 @@ internal struct MeshBuilder : IDisposable
         return bounds;
     }
 
+    // 부드러운 셰이딩에서는 같은 위치의 정점을 재사용하고 평면 셰이딩에서는 새로 추가한다.
     private int AddVertex(Vector3 vertex, Vector3 normal)
     {
         if (isSmoothShading)

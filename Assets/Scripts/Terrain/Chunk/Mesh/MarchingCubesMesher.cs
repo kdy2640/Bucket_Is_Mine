@@ -1,8 +1,10 @@
 using Unity.Collections;
 using UnityEngine;
 
+// 밀도 격자에서 마칭 큐브 방식으로 청크 표면의 삼각형과 노멀을 추출한다.
 internal struct MarchingCubesMesher
 {
+    // 밀도 입력과 표면 추출 설정
     private readonly ChunkMeshInput input;
     private readonly int width;
     private readonly int densityFieldHeight;
@@ -10,10 +12,12 @@ internal struct MarchingCubesMesher
     private readonly float threshold;
     private readonly bool isSmoothShading;
 
+    // 마칭 큐브 꼭짓점·모서리·삼각형 조회 테이블
     [ReadOnly] private NativeArray<Vector3Int> corners;
     [ReadOnly] private NativeArray<int> edgeCornerIndexes;
     [ReadOnly] private NativeArray<int> triangleTable;
 
+    // 메시 입력과 조회 테이블, 표면 임계값 및 셰이딩 방식을 저장한다.
     public MarchingCubesMesher(
         ChunkMeshInput input,
         NativeArray<Vector3Int> corners,
@@ -33,6 +37,7 @@ internal struct MarchingCubesMesher
         this.isSmoothShading = isSmoothShading;
     }
 
+    // 청크에 속한 모든 큐브를 순회하며 표면 삼각형을 빌더에 추가한다.
     public void Build(ref MeshBuilder builder)
     {
         int startX = input.Origin.x;
@@ -55,6 +60,7 @@ internal struct MarchingCubesMesher
         }
     }
 
+    // 큐브의 여덟 꼭짓점에서 밀도 값을 읽어 반환한다.
     private FixedList64Bytes<float> GetCubeCorners(int x, int y, int z)
     {
         FixedList64Bytes<float> cubeCorners = default;
@@ -68,6 +74,7 @@ internal struct MarchingCubesMesher
         return cubeCorners;
     }
 
+    // 꼭짓점 밀도에 맞는 테이블 항목을 찾아 한 큐브의 표면 삼각형을 생성한다.
     private void MarchCube(ref MeshBuilder builder, Vector3Int cubeIndex, FixedList64Bytes<float> cubeCorners)
     {
         int configIndex = GetConfigIndex(cubeCorners);
@@ -95,6 +102,7 @@ internal struct MarchingCubesMesher
         }
     }
 
+    // 표면 임계값보다 높은 꼭짓점을 비트로 표시해 조회 테이블의 인덱스를 만든다.
     private int GetConfigIndex(FixedList64Bytes<float> cubeCorners)
     {
         int configIndex = 0;
@@ -110,6 +118,7 @@ internal struct MarchingCubesMesher
         return configIndex;
     }
 
+    // 밀도 임계값을 지나는 모서리 위치를 보간하고 부드러운 셰이딩용 노멀을 계산한다.
     private Vector3 GetEdgeVertex(
         Vector3Int cubeIndex, FixedList64Bytes<float> cubeCorners, int edgeIndex, out Vector3 normal)
     {
@@ -138,6 +147,7 @@ internal struct MarchingCubesMesher
         return useMidpoint ? (edgeStart + edgeEnd) * 0.5f : Vector3.Lerp(edgeStart, edgeEnd, t);
     }
 
+    // 주변 샘플의 밀도 차이로 기울기를 구하며 격자 끝에서는 한쪽 방향의 차이를 사용한다.
     private Vector3 GetDensityGradient(Vector3Int index)
     {
         int minX = Mathf.Max(index.x - 1, 0);

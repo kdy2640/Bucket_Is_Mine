@@ -1,13 +1,17 @@
 using Unity.Collections;
 using UnityEngine;
 
+// 청크의 격자 범위와 밀도 배열을 보관한다. 배열의 수명은 TerrainData가 관리한다.
 public struct ChunkTerrainData
 {
+    // 전체 격자 기준 시작점과 큐브·샘플 개수
     public Vector3Int Origin;
     public Vector3Int CubeCount;
     public Vector3Int SampleCount;
+    // 청크 내부 좌표를 일차원으로 펼친 밀도 배열
     public NativeArray<float> Densities;
 
+    // 청크의 시작 좌표와 크기를 저장하고 샘플 수만큼 밀도 배열을 할당한다.
     public ChunkTerrainData(Vector3Int origin, Vector3Int cubeCount, Vector3Int sampleCount)
     {
         Origin = origin;
@@ -17,12 +21,14 @@ public struct ChunkTerrainData
             sampleCount.x * sampleCount.y * sampleCount.z, Allocator.Persistent);
     }
 
+    // 청크 내부 좌표를 일차원 인덱스로 바꿔 밀도를 읽는다.
     public float GetDensity(Vector3Int localIndex)
     {
         int index = (localIndex.x * SampleCount.y + localIndex.y) * SampleCount.z + localIndex.z;
         return Densities[index];
     }
 
+    // 청크 내부 좌표에 해당하는 배열 위치에 밀도를 저장한다.
     public void SetDensity(Vector3Int localIndex, float density)
     {
         int index = (localIndex.x * SampleCount.y + localIndex.y) * SampleCount.z + localIndex.z;

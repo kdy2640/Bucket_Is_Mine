@@ -5,20 +5,25 @@ using Unity.Jobs;
 using Unity.Profiling;
 using UnityEngine;
 
+// 청크별 밀도 배열을 소유하고 격자 좌표 변환과 밀도 수정을 담당한다.
 public class TerrainData : IDisposable
 {
+    // 밀도 수정 단계별 성능 측정
     private static readonly ProfilerMarker ModifyMarker = new ProfilerMarker("TerrainDensity.Modify");
     private static readonly ProfilerMarker ScheduleMarker = new ProfilerMarker("TerrainDensity.Schedule");
     private static readonly ProfilerMarker CompleteMarker = new ProfilerMarker("TerrainDensity.Complete");
+    // 이 데이터가 소유하는 청크별 밀도 배열
     private readonly Dictionary<Vector3Int, ChunkTerrainData> chunks =
         new Dictionary<Vector3Int, ChunkTerrainData>();
 
+    // 전체 격자 크기와 청크 분할 정보
     public int Width { get; }
     public int DensityFieldHeight { get; }
     public float Resolution { get; }
     public int ChunkSize { get; }
     public Vector3Int ChunkCounts { get; }
 
+    // 지형 크기에 맞춰 청크를 나누고 각 청크의 밀도 배열을 할당한다.
     public TerrainData(int width, int densityFieldHeight, float resolution, int chunkSize)
     {
         Width = Mathf.Max(1, width);
@@ -54,6 +59,7 @@ public class TerrainData : IDisposable
         }
     }
 
+    // 모든 청크의 밀도를 0으로 초기화한다.
     public void ResetDensities()
     {
         foreach (ChunkTerrainData chunk in chunks.Values)
@@ -66,12 +72,14 @@ public class TerrainData : IDisposable
         }
     }
 
-    // The returned struct borrows its array; TerrainData alone disposes it.
+    // 좌표에 해당하는 청크 데이터를 반환한다.
+    // 반환된 배열은 빌려 쓰는 참조이며 해제는 TerrainData가 담당한다.
     public ChunkTerrainData GetChunkData(Vector3Int chunkCoord)
     {
         return chunks[chunkCoord];
     }
 
+    // 소유한 모든 청크의 네이티브 밀도 배열을 해제한다.
     public void Dispose()
     {
         foreach (ChunkTerrainData chunk in chunks.Values)
@@ -82,6 +90,7 @@ public class TerrainData : IDisposable
         chunks.Clear();
     }
 
+    // 전체 격자 좌표에 해당하는 밀도를 읽고 범위 밖이면 0을 반환한다.
     public float GetDensity(Vector3Int index)
     {
         if (!IsValidIndex(index))
@@ -97,6 +106,7 @@ public class TerrainData : IDisposable
         return chunk.GetDensity(index - chunk.Origin);
     }
 
+    // 유효한 격자 좌표의 밀도를 0~1 범위로 제한해 저장한다.
     public void SetDensity(Vector3Int index, float density)
     {
         if (IsValidIndex(index))
@@ -110,6 +120,7 @@ public class TerrainData : IDisposable
         }
     }
 
+    // 지형 로컬 위치를 가장 가까운 밀도 샘플의 격자 좌표로 변환한다.
     public Vector3Int PositionToIndex(Vector3 localPosition)
     {
         return new Vector3Int(
@@ -118,11 +129,13 @@ public class TerrainData : IDisposable
             Mathf.RoundToInt(localPosition.z / Resolution));
     }
 
+    // 밀도 샘플의 격자 좌표를 지형 로컬 위치로 변환한다.
     public Vector3 IndexToPosition(Vector3Int index)
     {
         return new Vector3(index.x, index.y, index.z) * Resolution;
     }
 
+    // 구 영역의 밀도 수정을 청크별 Job으로 실행하고 수정 영역의 최소·최대 좌표를 반환한다.
     public bool ModifyDensitySphere(
         Vector3 localPosition,
         float radius,
@@ -217,6 +230,7 @@ public class TerrainData : IDisposable
         return changed;
     }
 
+    // 좌표가 지형 끝점 샘플을 포함한 밀도 격자 범위 안인지 확인한다.
     public bool IsValidIndex(Vector3Int index)
     {
         return index.x >= 0 && index.x <= Width &&

@@ -1,9 +1,12 @@
 using UnityEngine;
 
+// 고정 시드의 3D 노이즈 또는 2D 높이 노이즈로 지형의 초기 밀도를 채운다.
 public class TerrainGenerator
 {
+    // 동일한 입력에서 지형을 재현하기 위한 고정 시드
     private const int NoiseSeed = 15;
 
+    // 밀도를 초기화한 뒤 선택한 노이즈 방식과 표면 설정으로 전체 격자를 채운다.
     public void Generate(
         TerrainData data,
         float baseSurfaceHeight,

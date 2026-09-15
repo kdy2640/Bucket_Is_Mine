@@ -3,20 +3,26 @@ using System.Collections.Generic;
 using Unity.Profiling;
 using UnityEngine;
 
+// 청크 오브젝트의 생성·활성화와 메시·충돌체 교체 및 해제를 관리한다.
 public class TerrainChunkManager : System.IDisposable
 {
+    // 한 번에 생성할 청크 수와 충돌 메시 적용 시간 측정
     private const int ChunkGenerationBatchSize = 64;
     private static readonly ProfilerMarker ColliderMarker = new ProfilerMarker("TerrainMesh.Collider");
+    // 지형 소유자와 메시 생성기
     private readonly TerrainManager owner;
     private readonly TerrainMeshGenerator meshGenerator;
+    // 등록된 청크와 직접 생성해 해제해야 하는 메시
     private readonly Dictionary<Vector3Int, ChunkData> chunks =
         new Dictionary<Vector3Int, ChunkData>();
     private readonly HashSet<Mesh> generatedMeshes = new HashSet<Mesh>();
 
     public ICollection<Vector3Int> ChunkCoordinates => chunks.Keys;
 
+    // 해당 좌표의 청크 오브젝트가 활성화되어 있는지 확인한다.
     public bool IsChunkActive(Vector3Int coordinate) => chunks[coordinate].gameObject.activeSelf;
 
+    // 청크 오브젝트의 활성 상태가 요청과 다를 때만 변경한다.
     public void SetChunkActive(Vector3Int coordinate, bool active)
     {
         GameObject chunkObject = chunks[coordinate].gameObject;
@@ -26,6 +32,7 @@ public class TerrainChunkManager : System.IDisposable
         }
     }
 
+    // 청크의 메시와 오브젝트를 제거하고 관리 목록에서 제외한다.
     private void DestroyChunk(Vector3Int coordinate)
     {
         ChunkData chunk = chunks[coordinate];
@@ -36,6 +43,7 @@ public class TerrainChunkManager : System.IDisposable
         chunks.Remove(coordinate);
     }
 
+    // 등록된 모든 청크 오브젝트와 메시를 제거한다.
     public void ClearChunks()
     {
         foreach (Vector3Int coordinate in new List<Vector3Int>(chunks.Keys))
@@ -44,6 +52,7 @@ public class TerrainChunkManager : System.IDisposable
         }
     }
 
+    // 지형 소유자와 메시 생성기를 연결하고 기존 자식 청크를 등록한다.
     public TerrainChunkManager(TerrainManager owner)
     {
         this.owner = owner;
@@ -51,6 +60,7 @@ public class TerrainChunkManager : System.IDisposable
         RegisterExistingChunks();
     }
 
+    // 지형 범위 밖 청크를 제거한 뒤 전체 청크 메시를 다시 생성한다.
     public int RegenerateAllChunks()
     {
         Vector3Int chunkCounts = GetChunkCounts();
@@ -71,6 +81,7 @@ public class TerrainChunkManager : System.IDisposable
         return RegenerateChunks(chunkCoords);
     }
 
+    // 초기 청크를 일정 개수씩 생성해 비활성 상태로 준비하고 프레임을 나눠 처리한다.
     public IEnumerator GenerateInitialChunks()
     {
         Vector3Int chunkCounts = GetChunkCounts();
@@ -107,6 +118,7 @@ public class TerrainChunkManager : System.IDisposable
         }
     }
 
+    // 수정된 밀도와 경계 노멀에 영향을 받는 청크만 골라 메시를 갱신한다.
     public int RegenerateChunksInBounds(Vector3Int minIndex, Vector3Int maxIndex)
     {
         TerrainData data = owner.Data;
@@ -145,6 +157,7 @@ public class TerrainChunkManager : System.IDisposable
         return RegenerateChunks(chunkCoords);
     }
 
+    // 메시 생성기의 버퍼와 직접 생성한 메시를 해제하고 관리 목록을 비운다.
     public void Dispose()
     {
         meshGenerator.Dispose();
@@ -158,6 +171,7 @@ public class TerrainChunkManager : System.IDisposable
         chunks.Clear();
     }
 
+    // 요청된 청크들을 배치 크기로 나눠 생성하고 메시와 충돌체에 적용한다.
     private int RegenerateChunks(List<Vector3Int> chunkCoords)
     {
         // Bound temporary mesh/job buffers even when regenerating the entire terrain.
@@ -176,11 +190,13 @@ public class TerrainChunkManager : System.IDisposable
         return chunkCoords.Count;
     }
 
+    // 현재 밀도 데이터의 축별 청크 개수를 반환한다.
     private Vector3Int GetChunkCounts()
     {
         return owner.Data.ChunkCounts;
     }
 
+    // 전체 격자의 큐브 좌표를 해당 큐브가 속한 청크 좌표로 변환한다.
     private Vector3Int CubeIndexToChunkCoord(Vector3Int cubeIndex)
     {
         int chunkSize = owner.Data.ChunkSize;
@@ -190,6 +206,7 @@ public class TerrainChunkManager : System.IDisposable
             cubeIndex.z / chunkSize);
     }
 
+    // 등록된 청크를 반환하거나 지형의 레이어·태그·재질을 사용하는 청크를 생성한다.
     private ChunkData GetOrCreateChunk(Vector3Int chunkCoord)
     {
         if (chunks.TryGetValue(chunkCoord, out ChunkData chunk))
@@ -220,6 +237,7 @@ public class TerrainChunkManager : System.IDisposable
         return chunk;
     }
 
+    // 자식 오브젝트 중 청크 이름과 필수 컴포넌트가 있는 항목을 관리 목록에 등록한다.
     private void RegisterExistingChunks()
     {
         foreach (Transform child in owner.transform)
@@ -248,6 +266,7 @@ public class TerrainChunkManager : System.IDisposable
         }
     }
 
+    // Chunk_x_y_z 형식의 오브젝트 이름에서 청크 좌표를 읽는다.
     private static bool TryParseChunkCoord(string objectName, out Vector3Int chunkCoord)
     {
         chunkCoord = Vector3Int.zero;
@@ -265,6 +284,7 @@ public class TerrainChunkManager : System.IDisposable
         return true;
     }
 
+    // 지형에 지정된 재질을 우선 사용하고 없으면 부모 렌더러의 재질을 가져온다.
     private Material ResolveMaterial()
     {
         if (owner.Material != null)
@@ -276,6 +296,7 @@ public class TerrainChunkManager : System.IDisposable
         return parentRenderer != null ? parentRenderer.sharedMaterial : null;
     }
 
+    // 렌더링 메시와 충돌 메시를 함께 교체하고 이전에 생성한 메시를 해제한다.
     private void SetChunkMesh(ChunkData chunk, Mesh mesh)
     {
         Mesh oldMesh = chunk.meshFilter.sharedMesh;
@@ -305,6 +326,7 @@ public class TerrainChunkManager : System.IDisposable
         }
     }
 
+    // 현재 지형의 축별 청크 개수를 벗어난 청크를 제거한다.
     private void RemoveUnusedChunks(Vector3Int chunkCounts)
     {
         List<Vector3Int> unusedChunkCoords = new List<Vector3Int>();

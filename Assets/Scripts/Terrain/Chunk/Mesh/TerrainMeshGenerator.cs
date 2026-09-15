@@ -6,17 +6,22 @@ using Unity.Profiling;
 using UnityEngine;
 using UnityEngine.Rendering;
 
+// 청크별 메시 생성 Job을 실행하고 결과를 Unity Mesh에 적용한다.
 public class TerrainMeshGenerator : IDisposable
 {
+    // 메시 생성 단계별 성능 측정
     private static readonly ProfilerMarker PrepareMarker = new ProfilerMarker("TerrainMesh.Prepare");
     private static readonly ProfilerMarker ScheduleMarker = new ProfilerMarker("TerrainMesh.Schedule");
     private static readonly ProfilerMarker CompleteMarker = new ProfilerMarker("TerrainMesh.Complete");
     private static readonly ProfilerMarker ApplyMarker = new ProfilerMarker("TerrainMesh.Apply");
+    // 모든 청크 생성 작업이 공유하는 조회 테이블
     private NativeArray<Vector3Int> corners;
     private NativeArray<int> edgeCornerIndexes;
     private NativeArray<int> triangleTable;
+    // 정점 위치와 노멀의 메시 버퍼 형식
     private NativeArray<VertexAttributeDescriptor> vertexAttributes;
 
+    // 마칭 큐브 조회 테이블과 정점 버퍼 형식을 네이티브 배열로 준비한다.
     public TerrainMeshGenerator()
     {
         corners = new NativeArray<Vector3Int>(MarchingTable.Corners, Allocator.Persistent);
@@ -41,7 +46,8 @@ public class TerrainMeshGenerator : IDisposable
         }
     }
 
-    // Returned meshes belong to the caller; original density arrays remain owned by TerrainData.
+    // 요청한 청크들의 메시를 Job으로 생성해 반환한다.
+    // 반환된 메시의 해제는 호출자가 담당하고 원본 밀도 배열은 TerrainData가 소유한다.
     public Mesh[] Generate(
         TerrainData data,
         IReadOnlyList<Vector3Int> chunkCoords,
@@ -144,6 +150,7 @@ public class TerrainMeshGenerator : IDisposable
         }
     }
 
+    // 메시 생성기가 소유한 조회 테이블과 정점 형식 배열을 해제한다.
     public void Dispose()
     {
         corners.Dispose();

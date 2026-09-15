@@ -2,8 +2,10 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
+// 마칭 큐브에서 사용하는 꼭짓점·모서리 배치와 밀도 조합별 삼각형 테이블이다.
 public static class MarchingTable
 {
+	// 큐브 내부 여덟 꼭짓점의 상대 좌표
 	public static Vector3Int[] Corners = new Vector3Int[8] {
 
 		new Vector3Int(0, 0, 0),
@@ -17,6 +19,7 @@ public static class MarchingTable
 
 	};
 
+	// 각 모서리를 구성하는 두 끝점의 상대 좌표
 	public static Vector3[,] Edges = new Vector3[12, 2] {
 
 		{ new Vector3(0.0f, 0.0f, 0.0f), new Vector3(1.0f, 0.0f, 0.0f) },
@@ -34,6 +37,7 @@ public static class MarchingTable
 
 	};
 
+	// 밀도 조합별 삼각형의 모서리 인덱스 목록 (-1은 끝 표시)
 	public static int[,] Triangles = new int[,] {
 
 		{-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1},

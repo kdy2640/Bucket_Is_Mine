@@ -2,15 +2,18 @@ using System;
 using Unity.Collections;
 using UnityEngine;
 
-// Borrows original density arrays. Only the main-thread constructor accesses TerrainData.
+// 메시 생성 Job이 읽을 청크 정보와 이웃 밀도 배열의 참조를 보관한다.
+// TerrainData 접근은 메인 스레드의 생성자에서만 수행하며 배열을 직접 해제하지 않는다.
 internal struct ChunkMeshInput
 {
+    // 현재 청크 범위와 전체 지형 격자 정보
     public Vector3Int Origin;
     public Vector3Int CubeCount;
     public int Width;
     public int Height;
     public float Resolution;
 
+    // 밀도 샘플을 소유한 청크를 찾기 위한 분할 정보
     private Vector3Int chunkCoord;
     private Vector3Int chunkCounts;
     private int chunkSize;
@@ -50,6 +53,7 @@ internal struct ChunkMeshInput
     [ReadOnly] private NativeArray<float> density102;
     [ReadOnly] private NativeArray<float> density112;
 
+    // 현재 청크와 표면·노멀 계산에 필요한 이웃 청크의 밀도 배열을 연결한다.
     public ChunkMeshInput(TerrainData data, Vector3Int chunkCoord)
     {
         ChunkTerrainData chunk = data.GetChunkData(chunkCoord);
@@ -108,6 +112,7 @@ internal struct ChunkMeshInput
         density112 = data.GetChunkData(new Vector3Int(x1, y1, z2)).Densities;
     }
 
+    // 전체 격자 좌표를 소유한 청크의 배열을 골라 해당 샘플의 밀도를 읽는다.
     public readonly float GetDensity(Vector3Int index)
     {
         Vector3Int owner = new Vector3Int(

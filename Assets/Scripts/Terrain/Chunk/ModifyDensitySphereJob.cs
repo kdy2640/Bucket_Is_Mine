@@ -3,20 +3,26 @@ using Unity.Collections;
 using Unity.Jobs;
 using UnityEngine;
 
+// 한 청크에서 구 영역에 포함된 샘플의 밀도를 수정하는 Burst Job이다.
 [BurstCompile(FloatMode = FloatMode.Strict, FloatPrecision = FloatPrecision.High)]
 internal struct ModifyDensitySphereJob : IJob
 {
+    // 수정 대상 청크의 밀도 배열과 격자 정보
     public NativeArray<float> Densities;
     public Vector3Int Origin;
     public Vector3Int SampleCount;
+    // 이번 Job이 처리할 전체 격자 좌표 범위
     public Vector3Int MinIndex;
     public Vector3Int MaxIndex;
+    // 지형 로컬 좌표 기준 구 영역과 밀도 변화량
     public Vector3 LocalPosition;
     public float Resolution;
     public float Radius;
     public float Power;
+    // 처리한 샘플의 최소·최대 격자 좌표
     [WriteOnly] public NativeArray<Vector3Int> ChangedBounds;
 
+    // 구 중심에서 멀어질수록 밀도 변화량을 줄이고 처리한 샘플의 경계를 기록한다.
     public void Execute()
     {
         Vector3Int minChanged = new Vector3Int(int.MaxValue, int.MaxValue, int.MaxValue);
