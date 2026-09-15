@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 using UnityEngine.Serialization;
 
@@ -23,6 +24,7 @@ public class TerrainManager : MonoBehaviour
     private TerrainData data;
     private TerrainGenerator generator;
     private TerrainChunkManager chunkManager;
+    private Coroutine generationRoutine;
 #if UNITY_EDITOR
     // Unity preserves private serializable fields during script hot reload.
     private bool regenerateAfterReload;
@@ -53,7 +55,7 @@ public class TerrainManager : MonoBehaviour
     private void FixedUpdate()
     {
         // Run before player physics so a newly entered neighborhood has colliders.
-        // The normal load budget is processed only by Update.
+        // The normal activation budget is processed only by Update.
         streamer.UpdateTarget();
     }
 
@@ -76,6 +78,11 @@ public class TerrainManager : MonoBehaviour
     [ContextMenu("Regenerate Terrain")]
     public void GenerateTerrain()
     {
+        if (generationRoutine != null)
+        {
+            StopCoroutine(generationRoutine);
+            generationRoutine = null;
+        }
         streamer.Reset();
         if (chunkManager != null)
         {
@@ -98,14 +105,21 @@ public class TerrainManager : MonoBehaviour
         chunkManager = chunkManager ?? new TerrainChunkManager(this);
         if (Application.isPlaying)
         {
-            // Discard edit-mode preview chunks before starting the runtime queue.
+            // Replace edit-mode previews with the complete runtime terrain.
             chunkManager.ClearChunks();
-            streamer.Initialize(this, chunkManager, streamingTarget);
+            generationRoutine = StartCoroutine(GenerateTerrainRoutine());
         }
         else
         {
             chunkManager.RegenerateAllChunks();
         }
+    }
+
+    private IEnumerator GenerateTerrainRoutine()
+    {
+        yield return chunkManager.GenerateInitialChunks();
+        streamer.Initialize(this, chunkManager, streamingTarget);
+        generationRoutine = null;
     }
 
     public void RegenerateAllChunks()
@@ -172,6 +186,11 @@ public class TerrainManager : MonoBehaviour
 
     private void ReleaseResources()
     {
+        if (generationRoutine != null)
+        {
+            StopCoroutine(generationRoutine);
+            generationRoutine = null;
+        }
         streamer.Reset();
 #if UNITY_EDITOR
         UnityEditor.AssemblyReloadEvents.beforeAssemblyReload -= OnBeforeAssemblyReload;

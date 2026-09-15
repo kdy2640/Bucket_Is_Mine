@@ -260,7 +260,7 @@ MonoBehaviour:
   streamer:
     loadDistance: 110
     unloadDistance: 120
-    maxChunkLoadsPerFrame: 4
+    maxChunkActivationsPerFrame: 64
 --- !u!1 &330585543
 GameObject:
   m_ObjectHideFlags: 0

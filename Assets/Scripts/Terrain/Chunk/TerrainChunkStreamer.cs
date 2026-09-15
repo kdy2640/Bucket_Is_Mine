@@ -1,15 +1,17 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 [Serializable]
 public sealed class TerrainChunkStreamer
 {
     [SerializeField, Min(0f)] private float loadDistance = 110f;
     [SerializeField, Min(0f)] private float unloadDistance = 120f;
-    [SerializeField, Min(1)] private int maxChunkLoadsPerFrame = 4;
+    [FormerlySerializedAs("maxChunkLoadsPerFrame")]
+    [SerializeField, Min(1)] private int maxChunkActivationsPerFrame = 64;
 
-    private readonly Queue<Vector3Int> pendingLoads = new Queue<Vector3Int>();
+    private readonly Queue<Vector3Int> pendingActivations = new Queue<Vector3Int>();
     private readonly List<Vector3Int> coordinates = new List<Vector3Int>();
     private TerrainManager owner;
     private TerrainChunkManager chunkManager;
@@ -21,7 +23,7 @@ public sealed class TerrainChunkStreamer
     private bool initialized;
 
     public bool IsInitialLoadComplete { get; private set; }
-    public int PendingLoadCount => pendingLoads.Count;
+    public int PendingActivationCount => pendingActivations.Count;
 
     public void Initialize(TerrainManager terrain, TerrainChunkManager manager, Transform player)
     {
@@ -43,9 +45,9 @@ public sealed class TerrainChunkStreamer
             Mathf.Max(loadRadius.z + 1, Mathf.CeilToInt(releaseDistance / chunkWorldSize.z)));
         initialized = true;
         targetCoordinate = GetTargetCoordinate();
-        LoadImmediateNeighbors();
-        RefreshLoadingCoordinates();
-        IsInitialLoadComplete = pendingLoads.Count == 0;
+        ActivateImmediateNeighbors();
+        RefreshActivationCoordinates();
+        IsInitialLoadComplete = pendingActivations.Count == 0;
     }
 
     public void Tick()
@@ -56,13 +58,13 @@ public sealed class TerrainChunkStreamer
         }
 
         UpdateTarget();
-        int count = Mathf.Min(Mathf.Max(1, maxChunkLoadsPerFrame), pendingLoads.Count);
+        int count = Mathf.Min(Mathf.Max(1, maxChunkActivationsPerFrame), pendingActivations.Count);
         for (int i = 0; i < count; i++)
         {
-            chunkManager.LoadChunk(pendingLoads.Dequeue());
+            chunkManager.SetChunkActive(pendingActivations.Dequeue(), true);
         }
 
-        if (pendingLoads.Count == 0)
+        if (pendingActivations.Count == 0)
         {
             IsInitialLoadComplete = true;
         }
@@ -79,9 +81,9 @@ public sealed class TerrainChunkStreamer
         if (nextCoordinate != targetCoordinate)
         {
             targetCoordinate = nextCoordinate;
-            // Also covers teleporting: build support before removing the old neighborhood.
-            LoadImmediateNeighbors();
-            RefreshLoadingCoordinates();
+            // Also covers teleporting: enable support before hiding the old neighborhood.
+            ActivateImmediateNeighbors();
+            RefreshActivationCoordinates();
         }
     }
 
@@ -89,7 +91,7 @@ public sealed class TerrainChunkStreamer
     {
         initialized = false;
         IsInitialLoadComplete = false;
-        pendingLoads.Clear();
+        pendingActivations.Clear();
         coordinates.Clear();
     }
 
@@ -106,7 +108,7 @@ public sealed class TerrainChunkStreamer
             owner.Data.ChunkCounts - Vector3Int.one);
     }
 
-    private void LoadImmediateNeighbors()
+    private void ActivateImmediateNeighbors()
     {
         Vector3Int min = Vector3Int.Max(targetCoordinate - Vector3Int.one, Vector3Int.zero);
         Vector3Int max = Vector3Int.Min(
@@ -117,31 +119,32 @@ public sealed class TerrainChunkStreamer
             {
                 for (int z = min.z; z <= max.z; z++)
                 {
-                    chunkManager.LoadChunk(new Vector3Int(x, y, z));
+                    chunkManager.SetChunkActive(new Vector3Int(x, y, z), true);
                 }
             }
         }
     }
 
-    private void RefreshLoadingCoordinates()
+    private void RefreshActivationCoordinates()
     {
         coordinates.Clear();
-        foreach (Vector3Int coordinate in chunkManager.LoadedCoordinates)
+        foreach (Vector3Int coordinate in chunkManager.ChunkCoordinates)
         {
             Vector3Int offset = coordinate - targetCoordinate;
-            if (Mathf.Abs(offset.x) > unloadRadius.x ||
+            if (chunkManager.IsChunkActive(coordinate) &&
+                (Mathf.Abs(offset.x) > unloadRadius.x ||
                 Mathf.Abs(offset.y) > unloadRadius.y ||
-                Mathf.Abs(offset.z) > unloadRadius.z)
+                Mathf.Abs(offset.z) > unloadRadius.z))
             {
                 coordinates.Add(coordinate);
             }
         }
         foreach (Vector3Int coordinate in coordinates)
         {
-            chunkManager.UnloadChunk(coordinate);
+            chunkManager.SetChunkActive(coordinate, false);
         }
 
-        pendingLoads.Clear();
+        pendingActivations.Clear();
         coordinates.Clear();
         Vector3Int min = Vector3Int.Max(targetCoordinate - loadRadius, Vector3Int.zero);
         Vector3Int max = Vector3Int.Min(
@@ -153,7 +156,7 @@ public sealed class TerrainChunkStreamer
                 for (int z = min.z; z <= max.z; z++)
                 {
                     Vector3Int coordinate = new Vector3Int(x, y, z);
-                    if (!chunkManager.IsChunkLoaded(coordinate))
+                    if (!chunkManager.IsChunkActive(coordinate))
                     {
                         coordinates.Add(coordinate);
                     }
@@ -165,7 +168,7 @@ public sealed class TerrainChunkStreamer
                 Vector3.Scale(b - targetCoordinate, chunkWorldSize).sqrMagnitude));
         foreach (Vector3Int coordinate in coordinates)
         {
-            pendingLoads.Enqueue(coordinate);
+            pendingActivations.Enqueue(coordinate);
         }
     }
 }

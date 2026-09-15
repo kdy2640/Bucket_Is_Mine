@@ -1,9 +1,11 @@
+using System.Collections;
 using System.Collections.Generic;
 using Unity.Profiling;
 using UnityEngine;
 
 public class TerrainChunkManager : System.IDisposable
 {
+    private const int ChunkGenerationBatchSize = 64;
     private static readonly ProfilerMarker ColliderMarker = new ProfilerMarker("TerrainMesh.Collider");
     private readonly TerrainManager owner;
     private readonly TerrainMeshGenerator meshGenerator;
@@ -11,19 +13,20 @@ public class TerrainChunkManager : System.IDisposable
         new Dictionary<Vector3Int, ChunkData>();
     private readonly HashSet<Mesh> generatedMeshes = new HashSet<Mesh>();
 
-    public ICollection<Vector3Int> LoadedCoordinates => chunks.Keys;
+    public ICollection<Vector3Int> ChunkCoordinates => chunks.Keys;
 
-    public bool IsChunkLoaded(Vector3Int coordinate) => chunks.ContainsKey(coordinate);
+    public bool IsChunkActive(Vector3Int coordinate) => chunks[coordinate].gameObject.activeSelf;
 
-    public void LoadChunk(Vector3Int coordinate)
+    public void SetChunkActive(Vector3Int coordinate, bool active)
     {
-        if (!chunks.ContainsKey(coordinate))
+        GameObject chunkObject = chunks[coordinate].gameObject;
+        if (chunkObject.activeSelf != active)
         {
-            RegenerateChunks(new List<Vector3Int> { coordinate });
+            chunkObject.SetActive(active);
         }
     }
 
-    public void UnloadChunk(Vector3Int coordinate)
+    private void DestroyChunk(Vector3Int coordinate)
     {
         ChunkData chunk = chunks[coordinate];
         SetChunkMesh(chunk, null);
@@ -37,7 +40,7 @@ public class TerrainChunkManager : System.IDisposable
     {
         foreach (Vector3Int coordinate in new List<Vector3Int>(chunks.Keys))
         {
-            UnloadChunk(coordinate);
+            DestroyChunk(coordinate);
         }
     }
 
@@ -52,11 +55,6 @@ public class TerrainChunkManager : System.IDisposable
     {
         Vector3Int chunkCounts = GetChunkCounts();
         RemoveUnusedChunks(chunkCounts);
-        if (Application.isPlaying)
-        {
-            return RegenerateChunks(new List<Vector3Int>(chunks.Keys));
-        }
-
         List<Vector3Int> chunkCoords = new List<Vector3Int>();
 
         for (int x = 0; x < chunkCounts.x; x++)
@@ -71,6 +69,42 @@ public class TerrainChunkManager : System.IDisposable
         }
 
         return RegenerateChunks(chunkCoords);
+    }
+
+    public IEnumerator GenerateInitialChunks()
+    {
+        Vector3Int chunkCounts = GetChunkCounts();
+        List<Vector3Int> batch = new List<Vector3Int>(ChunkGenerationBatchSize);
+        for (int x = 0; x < chunkCounts.x; x++)
+        {
+            for (int y = 0; y < chunkCounts.y; y++)
+            {
+                for (int z = 0; z < chunkCounts.z; z++)
+                {
+                    batch.Add(new Vector3Int(x, y, z));
+                    if (batch.Count == ChunkGenerationBatchSize)
+                    {
+                        RegenerateChunks(batch);
+                        foreach (Vector3Int coordinate in batch)
+                        {
+                            SetChunkActive(coordinate, false);
+                        }
+                        batch.Clear();
+                        yield return null;
+                    }
+                }
+            }
+        }
+
+        if (batch.Count > 0)
+        {
+            RegenerateChunks(batch);
+            foreach (Vector3Int coordinate in batch)
+            {
+                SetChunkActive(coordinate, false);
+            }
+            yield return null;
+        }
     }
 
     public int RegenerateChunksInBounds(Vector3Int minIndex, Vector3Int maxIndex)
@@ -103,11 +137,7 @@ public class TerrainChunkManager : System.IDisposable
             {
                 for (int z = minChunk.z; z <= maxChunk.z; z++)
                 {
-                    Vector3Int coordinate = new Vector3Int(x, y, z);
-                    if (!Application.isPlaying || chunks.ContainsKey(coordinate))
-                    {
-                        chunkCoords.Add(coordinate);
-                    }
+                    chunkCoords.Add(new Vector3Int(x, y, z));
                 }
             }
         }
@@ -130,11 +160,17 @@ public class TerrainChunkManager : System.IDisposable
 
     private int RegenerateChunks(List<Vector3Int> chunkCoords)
     {
-        Mesh[] meshes = meshGenerator.Generate(
-            owner.Data, chunkCoords, owner.DensityThreshold, owner.IsSmoothShading);
-        for (int i = 0; i < chunkCoords.Count; i++)
+        // Bound temporary mesh/job buffers even when regenerating the entire terrain.
+        for (int start = 0; start < chunkCoords.Count; start += ChunkGenerationBatchSize)
         {
-            SetChunkMesh(GetOrCreateChunk(chunkCoords[i]), meshes[i]);
+            int count = Mathf.Min(ChunkGenerationBatchSize, chunkCoords.Count - start);
+            List<Vector3Int> batch = chunkCoords.GetRange(start, count);
+            Mesh[] meshes = meshGenerator.Generate(
+                owner.Data, batch, owner.DensityThreshold, owner.IsSmoothShading);
+            for (int i = 0; i < count; i++)
+            {
+                SetChunkMesh(GetOrCreateChunk(batch[i]), meshes[i]);
+            }
         }
 
         return chunkCoords.Count;
@@ -163,6 +199,10 @@ public class TerrainChunkManager : System.IDisposable
 
         GameObject chunkObject =
             new GameObject($"Chunk_{chunkCoord.x}_{chunkCoord.y}_{chunkCoord.z}");
+        if (Application.isPlaying)
+        {
+            chunkObject.SetActive(false);
+        }
         chunkObject.transform.SetParent(owner.transform, false);
         chunkObject.layer = owner.gameObject.layer;
         chunkObject.tag = owner.gameObject.tag;
@@ -281,7 +321,7 @@ public class TerrainChunkManager : System.IDisposable
 
         foreach (Vector3Int chunkCoord in unusedChunkCoords)
         {
-            UnloadChunk(chunkCoord);
+            DestroyChunk(chunkCoord);
         }
     }
 }
