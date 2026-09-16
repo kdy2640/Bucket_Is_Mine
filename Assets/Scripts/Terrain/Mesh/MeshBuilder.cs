@@ -39,6 +39,13 @@ internal struct MeshBuilder : IDisposable
         Vector3 normal0, Vector3 normal1, Vector3 normal2,
         Color color0, Color color1, Color color2)
     {
+        // 임계값 교차점이 같은 위치나 직선으로 모이면 충돌면을 만들 수 없다.
+        float3 faceNormal = math.cross((float3)(vertex1 - vertex0), (float3)(vertex2 - vertex0));
+        if (math.lengthsq(faceNormal) == 0f)
+        {
+            return;
+        }
+
         int index0 = AddVertex(vertex0, normal0, color0);
         int index1 = AddVertex(vertex1, normal1, color1);
         int index2 = AddVertex(vertex2, normal2, color2);

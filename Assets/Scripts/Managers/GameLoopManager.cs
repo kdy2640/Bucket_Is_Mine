@@ -4,11 +4,12 @@ using UnityEngine;
 public class GameLoopManager : MonoBehaviour
 {
     public bool IsGameLoopScene => GameManager.Instance.SceneController.currenSceneType == SceneType.GameLoop; 
-    private float loopDuration = 20f;
+    private float loopDuration = 60f;
      
     private GameLoopEventManager eventManager;  
     private Action<float> OnTick;
-    private float timer;
+    [SerializeField] private float timer;
+    [SerializeField] private bool isPaused = false;
     private bool isRunning = false;
 
     public float Timer { get { return timer; } }
@@ -37,7 +38,8 @@ public class GameLoopManager : MonoBehaviour
     {
         if (!isRunning)
             return;
-
+        if (isPaused)
+            return;
         timer -= Time.deltaTime; 
         OnTick?.Invoke(Timer);
 
