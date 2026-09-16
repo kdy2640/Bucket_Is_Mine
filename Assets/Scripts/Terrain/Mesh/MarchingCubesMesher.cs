@@ -11,6 +11,8 @@ internal struct MarchingCubesMesher
     private readonly float resolution;
     private readonly float threshold;
     private readonly bool isSmoothShading;
+    [ReadOnly] private NativeArray<TerrainLayer> layers;
+    private readonly Color artificialColor;
 
     // 마칭 큐브 꼭짓점·모서리·삼각형 조회 테이블
     [ReadOnly] private NativeArray<Vector3Int> corners;
@@ -24,7 +26,9 @@ internal struct MarchingCubesMesher
         NativeArray<int> edgeCornerIndexes,
         NativeArray<int> triangleTable,
         float threshold,
-        bool isSmoothShading)
+        bool isSmoothShading,
+        NativeArray<TerrainLayer> layers,
+        Color artificialColor)
     {
         this.input = input;
         this.corners = corners;
@@ -35,6 +39,8 @@ internal struct MarchingCubesMesher
         resolution = input.Resolution;
         this.threshold = threshold;
         this.isSmoothShading = isSmoothShading;
+        this.layers = layers;
+        this.artificialColor = artificialColor;
     }
 
     // 청크에 속한 모든 큐브를 순회하며 표면 삼각형을 빌더에 추가한다.
@@ -92,13 +98,13 @@ internal struct MarchingCubesMesher
             }
 
             Vector3 vertex0 = GetEdgeVertex(
-                cubeIndex, cubeCorners, triangleTable[configIndex * 16 + edgeIndex], out Vector3 normal0);
+                cubeIndex, cubeCorners, triangleTable[configIndex * 16 + edgeIndex], out Vector3 normal0, out Color color0);
             Vector3 vertex1 = GetEdgeVertex(
-                cubeIndex, cubeCorners, triangleTable[configIndex * 16 + edgeIndex + 1], out Vector3 normal1);
+                cubeIndex, cubeCorners, triangleTable[configIndex * 16 + edgeIndex + 1], out Vector3 normal1, out Color color1);
             Vector3 vertex2 = GetEdgeVertex(
-                cubeIndex, cubeCorners, triangleTable[configIndex * 16 + edgeIndex + 2], out Vector3 normal2);
+                cubeIndex, cubeCorners, triangleTable[configIndex * 16 + edgeIndex + 2], out Vector3 normal2, out Color color2);
 
-            builder.AddTriangle(vertex0, vertex1, vertex2, normal0, normal1, normal2);
+            builder.AddTriangle(vertex0, vertex1, vertex2, normal0, normal1, normal2, color0, color1, color2);
         }
     }
 
@@ -120,7 +126,8 @@ internal struct MarchingCubesMesher
 
     // 밀도 임계값을 지나는 모서리 위치를 보간하고 부드러운 셰이딩용 노멀을 계산한다.
     private Vector3 GetEdgeVertex(
-        Vector3Int cubeIndex, FixedList64Bytes<float> cubeCorners, int edgeIndex, out Vector3 normal)
+        Vector3Int cubeIndex, FixedList64Bytes<float> cubeCorners, int edgeIndex,
+        out Vector3 normal, out Color color)
     {
         int startCornerIndex = edgeCornerIndexes[edgeIndex * 2];
         int endCornerIndex = edgeCornerIndexes[edgeIndex * 2 + 1];
@@ -144,7 +151,37 @@ internal struct MarchingCubesMesher
             normal = -Vector3.Lerp(startGradient, endGradient, t).normalized;
         }
 
-        return useMidpoint ? (edgeStart + edgeEnd) * 0.5f : Vector3.Lerp(edgeStart, edgeEnd, t);
+        Vector3 vertex = useMidpoint ? (edgeStart + edgeEnd) * 0.5f : Vector3.Lerp(edgeStart, edgeEnd, t);
+        int solidCorner = startDensity > threshold ? startCornerIndex : endCornerIndex;
+        byte typeId = input.GetTerrainType(cubeIndex + corners[solidCorner]);
+        color = GetVertexColor(vertex.y, typeId);
+        return vertex;
+    }
+
+    // 인공 지형은 고체 쪽 종류의 색, 자연 지형은 초기 지층의 높이별 색을 사용한다.
+    private Color GetVertexColor(float localY, byte typeId)
+    {
+        if (typeId == TerrainData.ArtificialTypeId)
+        {
+            return artificialColor;
+        }
+
+        Color color = layers[0].Color;
+        for (int i = 1; i < layers.Length; i++)
+        {
+            TerrainLayer layer = layers[i];
+            float halfWidth = layer.BlendWidth * 0.5f;
+            if (localY < layer.YStart - halfWidth) break;
+
+            Color nextColor = layer.Color;
+            if (layer.BlendWidth > 0f && localY < layer.YStart + halfWidth)
+            {
+                float t = (localY - layer.YStart + halfWidth) / layer.BlendWidth;
+                return Color.Lerp(color, nextColor, t * t * (3f - 2f * t));
+            }
+            color = nextColor;
+        }
+        return color;
     }
 
     // 주변 샘플의 밀도 차이로 기울기를 구하며 격자 끝에서는 한쪽 방향의 차이를 사용한다.

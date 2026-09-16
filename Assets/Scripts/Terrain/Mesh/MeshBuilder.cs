@@ -15,6 +15,7 @@ internal struct MeshBuilder : IDisposable
     // 완성할 메시의 정점·노멀·삼각형 버퍼
     public NativeList<Vector3> Vertices;
     public NativeList<Vector3> Normals;
+    public NativeList<Color> Colors;
     public NativeList<int> Triangles;
     // 밀도 기울기가 0인 정점의 면 노멀 보완 여부
     public bool NeedsFaceNormals;
@@ -27,6 +28,7 @@ internal struct MeshBuilder : IDisposable
         faceNormals = new NativeList<Vector3>(Allocator.TempJob);
         Vertices = new NativeList<Vector3>(Allocator.TempJob);
         Normals = new NativeList<Vector3>(Allocator.TempJob);
+        Colors = new NativeList<Color>(Allocator.TempJob);
         Triangles = new NativeList<int>(Allocator.TempJob);
         NeedsFaceNormals = false;
     }
@@ -34,11 +36,12 @@ internal struct MeshBuilder : IDisposable
     // 세 정점을 등록하고 지형 표면 방향에 맞는 순서로 삼각형 인덱스를 추가한다.
     public void AddTriangle(
         Vector3 vertex0, Vector3 vertex1, Vector3 vertex2,
-        Vector3 normal0, Vector3 normal1, Vector3 normal2)
+        Vector3 normal0, Vector3 normal1, Vector3 normal2,
+        Color color0, Color color1, Color color2)
     {
-        int index0 = AddVertex(vertex0, normal0);
-        int index1 = AddVertex(vertex1, normal1);
-        int index2 = AddVertex(vertex2, normal2);
+        int index0 = AddVertex(vertex0, normal0, color0);
+        int index1 = AddVertex(vertex1, normal1, color1);
+        int index2 = AddVertex(vertex2, normal2, color2);
 
         Triangles.Add(index0);
         Triangles.Add(index2);
@@ -52,6 +55,7 @@ internal struct MeshBuilder : IDisposable
         faceNormals.Dispose();
         Vertices.Dispose();
         Normals.Dispose();
+        Colors.Dispose();
         Triangles.Dispose();
     }
 
@@ -117,6 +121,7 @@ internal struct MeshBuilder : IDisposable
         meshData.SetIndexBufferParams(Triangles.Length, IndexFormat.UInt32);
         meshData.GetVertexData<Vector3>(0).CopyFrom(Vertices.AsArray());
         meshData.GetVertexData<Vector3>(1).CopyFrom(Normals.AsArray());
+        meshData.GetVertexData<Color>(2).CopyFrom(Colors.AsArray());
         meshData.GetIndexData<int>().CopyFrom(Triangles.AsArray());
         meshData.subMeshCount = 1;
         meshData.SetSubMesh(0, new SubMeshDescriptor(0, Triangles.Length, MeshTopology.Triangles)
@@ -129,7 +134,7 @@ internal struct MeshBuilder : IDisposable
     }
 
     // 부드러운 셰이딩에서는 같은 위치의 정점을 재사용하고 평면 셰이딩에서는 새로 추가한다.
-    private int AddVertex(Vector3 vertex, Vector3 normal)
+    private int AddVertex(Vector3 vertex, Vector3 normal, Color color)
     {
         if (isSmoothShading)
         {
@@ -142,11 +147,13 @@ internal struct MeshBuilder : IDisposable
             vertexDict.Add(vertex, index);
             Vertices.Add(vertex);
             Normals.Add(normal);
+            Colors.Add(color);
             NeedsFaceNormals |= normal.sqrMagnitude == 0f;
             return index;
         }
 
         Vertices.Add(vertex);
+        Colors.Add(color);
         return Vertices.Length - 1;
     }
 }

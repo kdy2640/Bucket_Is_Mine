@@ -9,6 +9,8 @@ internal struct ModifyDensitySphereJob : IJob
 {
     // 수정 대상 청크의 밀도 배열과 격자 정보
     public NativeArray<float> Densities;
+    public NativeArray<byte> TypeIds;
+    public float DensityThreshold;
     public Vector3Int Origin;
     public Vector3Int SampleCount;
     // 이번 Job이 처리할 전체 격자 좌표 범위
@@ -44,7 +46,14 @@ internal struct ModifyDensitySphereJob : IJob
                     float falloff = t * t * (3f - 2f * t);
                     Vector3Int localIndex = index - Origin;
                     int flatIndex = (localIndex.x * SampleCount.y + localIndex.y) * SampleCount.z + localIndex.z;
-                    Densities[flatIndex] = Mathf.Clamp01(Densities[flatIndex] + Power * falloff);
+                    float before = Densities[flatIndex];
+                    float after = Mathf.Clamp01(before + Power * falloff);
+                    Densities[flatIndex] = after;
+                    // 기존 고체는 유지하고, 빈 공간에 누적되는 밀도에만 인공 지형을 기록한다.
+                    if (after > before && before <= DensityThreshold)
+                    {
+                        TypeIds[flatIndex] = TerrainData.ArtificialTypeId;
+                    }
                     // Preserve the existing bounds even when clamping leaves density unchanged.
                     minChanged = Vector3Int.Min(minChanged, index);
                     maxChanged = Vector3Int.Max(maxChanged, index);

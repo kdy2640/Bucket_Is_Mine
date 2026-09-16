@@ -18,6 +18,16 @@ internal struct ChunkMeshInput
     private Vector3Int chunkCounts;
     private int chunkSize;
 
+    // 종류는 표면을 만드는 큐브의 여덟 꼭짓점 소유 청크만 참조한다.
+    [ReadOnly] private NativeArray<byte> type000;
+    [ReadOnly] private NativeArray<byte> type001;
+    [ReadOnly] private NativeArray<byte> type010;
+    [ReadOnly] private NativeArray<byte> type011;
+    [ReadOnly] private NativeArray<byte> type100;
+    [ReadOnly] private NativeArray<byte> type101;
+    [ReadOnly] private NativeArray<byte> type110;
+    [ReadOnly] private NativeArray<byte> type111;
+
     // Eight corner-owner combinations and single-axis gradient neighbors.
     // A one-cell chunk can read two chunks ahead for the gradient at its upper corner.
     [ReadOnly] private NativeArray<float> density000;
@@ -78,6 +88,14 @@ internal struct ChunkMeshInput
         int z0 = chunkCoord.z;
         int z1 = Mathf.Min(chunkCoord.z + 1, chunkCounts.z - 1);
         int z2 = Mathf.Min(chunkCoord.z + (chunkSize == 1 ? 2 : 1), chunkCounts.z - 1);
+        type000 = data.GetChunkData(new Vector3Int(x0, y0, z0)).TypeIds;
+        type001 = data.GetChunkData(new Vector3Int(x0, y0, z1)).TypeIds;
+        type010 = data.GetChunkData(new Vector3Int(x0, y1, z0)).TypeIds;
+        type011 = data.GetChunkData(new Vector3Int(x0, y1, z1)).TypeIds;
+        type100 = data.GetChunkData(new Vector3Int(x1, y0, z0)).TypeIds;
+        type101 = data.GetChunkData(new Vector3Int(x1, y0, z1)).TypeIds;
+        type110 = data.GetChunkData(new Vector3Int(x1, y1, z0)).TypeIds;
+        type111 = data.GetChunkData(new Vector3Int(x1, y1, z1)).TypeIds;
         density000 = data.GetChunkData(new Vector3Int(x0, y0, z0)).Densities;
         density001 = data.GetChunkData(new Vector3Int(x0, y0, z1)).Densities;
         density010 = data.GetChunkData(new Vector3Int(x0, y1, z0)).Densities;
@@ -110,6 +128,36 @@ internal struct ChunkMeshInput
         density012 = data.GetChunkData(new Vector3Int(x0, y1, z2)).Densities;
         density102 = data.GetChunkData(new Vector3Int(x1, y0, z2)).Densities;
         density112 = data.GetChunkData(new Vector3Int(x1, y1, z2)).Densities;
+    }
+
+    // 표면 꼭짓점의 종류를 밀도와 동일한 소유 청크에서 읽는다.
+    public readonly byte GetTerrainType(Vector3Int index)
+    {
+        Vector3Int owner = new Vector3Int(
+            Mathf.Min(index.x / chunkSize, chunkCounts.x - 1),
+            Mathf.Min(index.y / chunkSize, chunkCounts.y - 1),
+            Mathf.Min(index.z / chunkSize, chunkCounts.z - 1));
+        Vector3Int origin = owner * chunkSize;
+        Vector3Int localIndex = index - origin;
+        int sampleCountY = Mathf.Min(chunkSize, Height - origin.y) +
+            (owner.y == chunkCounts.y - 1 ? 1 : 0);
+        int sampleCountZ = Mathf.Min(chunkSize, Width - origin.z) +
+            (owner.z == chunkCounts.z - 1 ? 1 : 0);
+        int flatIndex = (localIndex.x * sampleCountY + localIndex.y) * sampleCountZ + localIndex.z;
+        Vector3Int offset = owner - chunkCoord;
+        int sourceIndex = offset.x * 4 + offset.y * 2 + offset.z;
+        switch (sourceIndex)
+        {
+            case 0: return type000[flatIndex];
+            case 1: return type001[flatIndex];
+            case 2: return type010[flatIndex];
+            case 3: return type011[flatIndex];
+            case 4: return type100[flatIndex];
+            case 5: return type101[flatIndex];
+            case 6: return type110[flatIndex];
+            case 7: return type111[flatIndex];
+            default: throw new ArgumentOutOfRangeException(nameof(index));
+        }
     }
 
     // 전체 격자 좌표를 소유한 청크의 배열을 골라 해당 샘플의 밀도를 읽는다.

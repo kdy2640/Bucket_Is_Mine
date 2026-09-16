@@ -73,6 +73,7 @@ public class TerrainManager : MonoBehaviour
             localPosition,
             radius,
             power,
+            densityThreshold,
             out Vector3Int minChangedIndex,
             out Vector3Int maxChangedIndex))
         {
@@ -154,7 +155,10 @@ public class TerrainManager : MonoBehaviour
     // 현재 격자 설정으로 밀도 데이터를 생성한다.
     private TerrainData CreateTerrainData()
     {
-        return new TerrainData(chunkManager.Grid);
+        return new TerrainData(
+            chunkManager.Grid,
+            TerrainTypeDB.GetLayers(),
+            TerrainTypeDB.GetData(TerrainData.ArtificialTypeId).Layer.Color);
     }
 
     // 오브젝트가 파괴될 때 지형이 소유한 자원을 해제한다.

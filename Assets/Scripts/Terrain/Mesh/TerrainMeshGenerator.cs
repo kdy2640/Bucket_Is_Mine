@@ -35,7 +35,8 @@ public class TerrainMeshGenerator : IDisposable
         vertexAttributes = new NativeArray<VertexAttributeDescriptor>(new[]
         {
             new VertexAttributeDescriptor(VertexAttribute.Position, VertexAttributeFormat.Float32, 3, 0),
-            new VertexAttributeDescriptor(VertexAttribute.Normal, VertexAttributeFormat.Float32, 3, 1)
+            new VertexAttributeDescriptor(VertexAttribute.Normal, VertexAttributeFormat.Float32, 3, 1),
+            new VertexAttributeDescriptor(VertexAttribute.Color, VertexAttributeFormat.Float32, 4, 2)
         }, Allocator.Persistent);
         for (int config = 0; config < MarchingTable.Triangles.GetLength(0); config++)
         {
@@ -93,7 +94,8 @@ public class TerrainMeshGenerator : IDisposable
                     BuildChunkMeshJob job = new BuildChunkMeshJob
                     {
                         Mesher = new MarchingCubesMesher(
-                            input, corners, edgeCornerIndexes, triangleTable, threshold, isSmoothShading),
+                            input, corners, edgeCornerIndexes, triangleTable, threshold, isSmoothShading,
+                            data.Layers, data.ArtificialColor),
                         Builder = builders[i],
                         MeshData = meshData[i][0],
                         VertexAttributes = vertexAttributes,

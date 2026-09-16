@@ -10,6 +10,7 @@ public struct ChunkDensityData
     public Vector3Int SampleCount;
     // 청크 내부 좌표를 일차원으로 펼친 밀도 배열
     public NativeArray<float> Densities;
+    public NativeArray<byte> TypeIds;
 
     // 청크의 시작 좌표와 크기를 저장하고 샘플 수만큼 밀도 배열을 할당한다.
     public ChunkDensityData(Vector3Int origin, Vector3Int cubeCount, Vector3Int sampleCount)
@@ -19,6 +20,7 @@ public struct ChunkDensityData
         SampleCount = sampleCount;
         Densities = new NativeArray<float>(
             sampleCount.x * sampleCount.y * sampleCount.z, Allocator.Persistent);
+        TypeIds = new NativeArray<byte>(Densities.Length, Allocator.Persistent);
     }
 
     // 청크 내부 좌표를 일차원 인덱스로 바꿔 밀도를 읽는다.

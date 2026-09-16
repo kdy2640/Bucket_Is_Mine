@@ -8,6 +8,8 @@ using UnityEngine;
 // 청크별 밀도 배열을 소유하고 격자 좌표 변환과 밀도 수정을 담당한다.
 public class TerrainData : IDisposable
 {
+    public const byte ArtificialTypeId = 0;
+
     // 밀도 수정 단계별 성능 측정
     private static readonly ProfilerMarker ModifyMarker = new ProfilerMarker("TerrainDensity.Modify");
     private static readonly ProfilerMarker ScheduleMarker = new ProfilerMarker("TerrainDensity.Schedule");
@@ -22,10 +24,24 @@ public class TerrainData : IDisposable
     public float Resolution { get; }
     public int ChunkSize { get; }
     public Vector3Int ChunkCounts { get; }
+    internal NativeArray<TerrainLayer> Layers { get; }
+    internal Color ArtificialColor { get; }
 
     // 지형 크기에 맞춰 청크를 나누고 각 청크의 밀도 배열을 할당한다.
-    public TerrainData(TerrainGridGeometry grid)
+    public TerrainData(TerrainGridGeometry grid, TerrainLayer[] sourceLayers, Color artificialColor)
     {
+        // SO를 수정하지 않고 생성 시점의 설정과 렌더링 색 공간을 네이티브 데이터에 복사한다.
+        NativeArray<TerrainLayer> layers = new NativeArray<TerrainLayer>(sourceLayers.Length, Allocator.Persistent);
+        bool linearColorSpace = QualitySettings.activeColorSpace == ColorSpace.Linear;
+        for (int i = 0; i < layers.Length; i++)
+        {
+            TerrainLayer layer = sourceLayers[i];
+            if (linearColorSpace) layer.Color = layer.Color.linear;
+            layers[i] = layer;
+        }
+        Layers = layers;
+        ArtificialColor = linearColorSpace ? artificialColor.linear : artificialColor;
+
         Width = grid.Width;
         DensityFieldHeight = grid.DensityFieldHeight;
         Resolution = grid.Resolution;
@@ -87,9 +103,24 @@ public class TerrainData : IDisposable
         foreach (ChunkDensityData chunk in chunks.Values)
         {
             chunk.Densities.Dispose();
+            chunk.TypeIds.Dispose();
         }
 
         chunks.Clear();
+        Layers.Dispose();
+    }
+
+    // 유효한 격자 좌표의 종류를 읽는다. 고체 여부는 밀도로 판정한다.
+    public byte GetTerrainType(Vector3Int index)
+    {
+        Vector3Int chunkCoord = new Vector3Int(
+            Mathf.Min(index.x / ChunkSize, ChunkCounts.x - 1),
+            Mathf.Min(index.y / ChunkSize, ChunkCounts.y - 1),
+            Mathf.Min(index.z / ChunkSize, ChunkCounts.z - 1));
+        ChunkDensityData chunk = chunks[chunkCoord];
+        Vector3Int localIndex = index - chunk.Origin;
+        int flatIndex = (localIndex.x * chunk.SampleCount.y + localIndex.y) * chunk.SampleCount.z + localIndex.z;
+        return chunk.TypeIds[flatIndex];
     }
 
     // 전체 격자 좌표에 해당하는 밀도를 읽고 범위 밖이면 0을 반환한다.
@@ -142,6 +173,7 @@ public class TerrainData : IDisposable
         Vector3 localPosition,
         float radius,
         float power,
+        float densityThreshold,
         out Vector3Int minChangedIndex,
         out Vector3Int maxChangedIndex)
     {
@@ -192,6 +224,8 @@ public class TerrainData : IDisposable
                         ModifyDensitySphereJob job = new ModifyDensitySphereJob
                         {
                             Densities = chunk.Densities,
+                            TypeIds = chunk.TypeIds,
+                            DensityThreshold = densityThreshold,
                             Origin = chunk.Origin,
                             SampleCount = chunk.SampleCount,
                             MinIndex = Vector3Int.Max(minIndex, chunk.Origin),
