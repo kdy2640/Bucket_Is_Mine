@@ -28,7 +28,7 @@ public class TerrainManager : MonoBehaviour
 
     // 실행 중인 지형 데이터와 생성 작업
     private TerrainData data;
-    private TerrainGenerator generator;
+    private TerrainDensityFormer generator;
     private Coroutine generationRoutine;
 
     // 청크 생성과 외부 조회에 사용하는 지형 상태
@@ -99,7 +99,7 @@ public class TerrainManager : MonoBehaviour
         }
 
         data = CreateTerrainData();
-        generator = generator ?? new TerrainGenerator();
+        generator = generator ?? new TerrainDensityFormer();
         generator.Generate(
             data,
             baseSurfaceHeight,
@@ -135,7 +135,7 @@ public class TerrainManager : MonoBehaviour
         if (data == null)
         {
             data = CreateTerrainData();
-            generator = generator ?? new TerrainGenerator();
+            generator = generator ?? new TerrainDensityFormer();
             generator.Generate(
                 data,
                 baseSurfaceHeight,

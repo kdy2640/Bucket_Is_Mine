@@ -11,44 +11,30 @@ public class PerlinNoise3D
     private const int Z_HASH = 83492791;
 
     private const int MAX = 100;
-    private const int CORENER_COUNT = 8;
-
-    Vector3Int[] diffArr = new Vector3Int[CORENER_COUNT]; 
-    Vector3[] VecArr = new Vector3[CORENER_COUNT];
-    Vector3Int[] CubeArr = new Vector3Int[CORENER_COUNT];
-    float[] GradientArr = new float[CORENER_COUNT];
 
     public PerlinNoise3D(int seed)
     {
         this.seed = seed;
-        Init();
     }
 
     public PerlinNoise3D()
     {
         seed = Random.Range(0, MAX);
-        Init();
     }
 
-    private void Init()
-    {
-        diffArr = new Vector3Int[CORENER_COUNT];
-        diffArr[0] = Vector3Int.zero;
-        diffArr[1] = new Vector3Int(1, 0, 0);
-        diffArr[2] = new Vector3Int(0, 1, 0);
-        diffArr[3] = new Vector3Int(1, 1, 0);
-        diffArr[4] = new Vector3Int(0, 0, 1);
-        diffArr[5] = new Vector3Int(1, 0, 1);
-        diffArr[6] = new Vector3Int(0, 1, 1);
-        diffArr[7] = new Vector3Int(1, 1, 1);
-         
-    }
     public float GetRandomValue(float x, float y, float z)
     {
-        return GetRandomValue(new Vector3(x, y, z));
+        return GetRandomValue(x, y, z, seed);
     }
     public float GetRandomValue(Vector3 position)
     {
+        return GetRandomValue(position.x, position.y, position.z, seed);
+    }
+
+    // 공유 임시 배열 없이 같은 시드와 좌표의 노이즈를 계산한다.
+    public static float GetRandomValue(float x, float y, float z, int seed)
+    {
+        Vector3 position = new Vector3(x, y, z);
         int _x = Mathf.FloorToInt(position.x);
         int _y = Mathf.FloorToInt(position.y);
         int _z = Mathf.FloorToInt(position.z);
@@ -61,23 +47,22 @@ public class PerlinNoise3D
         float dFY = Fade(dY);
         float dFZ = Fade(dZ);
 
-        Vector3Int anchor = new Vector3Int(_x, _y, _z); 
-
-
-        for (int i = 0; i < CORENER_COUNT; i++)
-        {
-            CubeArr[i]= anchor + diffArr[i];
-            VecArr[i] = GetRandomVec3(CubeArr[i].x, CubeArr[i].y, CubeArr[i].z); 
-            GradientArr[i] = Vector3.Dot(position - CubeArr[i], VecArr[i]);
-        }
+        float g0 = Vector3.Dot(position - new Vector3Int(_x, _y, _z), GetRandomVec3(_x, _y, _z, seed));
+        float g1 = Vector3.Dot(position - new Vector3Int(_x + 1, _y, _z), GetRandomVec3(_x + 1, _y, _z, seed));
+        float g2 = Vector3.Dot(position - new Vector3Int(_x, _y + 1, _z), GetRandomVec3(_x, _y + 1, _z, seed));
+        float g3 = Vector3.Dot(position - new Vector3Int(_x + 1, _y + 1, _z), GetRandomVec3(_x + 1, _y + 1, _z, seed));
+        float g4 = Vector3.Dot(position - new Vector3Int(_x, _y, _z + 1), GetRandomVec3(_x, _y, _z + 1, seed));
+        float g5 = Vector3.Dot(position - new Vector3Int(_x + 1, _y, _z + 1), GetRandomVec3(_x + 1, _y, _z + 1, seed));
+        float g6 = Vector3.Dot(position - new Vector3Int(_x, _y + 1, _z + 1), GetRandomVec3(_x, _y + 1, _z + 1, seed));
+        float g7 = Vector3.Dot(position - new Vector3Int(_x + 1, _y + 1, _z + 1), GetRandomVec3(_x + 1, _y + 1, _z + 1, seed));
 
         //tri-linear interpolation
-        float x1 = (1 - dFX) * GradientArr[0] + dFX * GradientArr[1];
-        float x2 = (1 - dFX) * GradientArr[2] + dFX * GradientArr[3];
+        float x1 = (1 - dFX) * g0 + dFX * g1;
+        float x2 = (1 - dFX) * g2 + dFX * g3;
         float y1 = (1 - dFY) * x1 + dFY * x2;
 
-        float x3 = (1 - dFX) * GradientArr[4] + dFX * GradientArr[5];
-        float x4 = (1 - dFX) * GradientArr[6] + dFX * GradientArr[7];
+        float x3 = (1 - dFX) * g4 + dFX * g5;
+        float x4 = (1 - dFX) * g6 + dFX * g7;
         float y2 = (1 - dFY) * x3 + dFY * x4;
 
         float z1 = (1 - dFZ) * y1 + dFZ * y2;
@@ -106,7 +91,7 @@ public class PerlinNoise3D
     new Vector3( 0, -1, -1) * INV_SQRT2,
 };
 
-    private Vector3 GetRandomVec3(int x, int y, int z)
+    private static Vector3 GetRandomVec3(int x, int y, int z, int seed)
     {
         unchecked
         {
@@ -126,7 +111,7 @@ public class PerlinNoise3D
         }
     }
 
-    private float Fade(float t)
+    private static float Fade(float t)
     {
         return t * t * t * (t * (t * 6 - 15) + 10);
     }
