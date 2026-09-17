@@ -38,7 +38,10 @@ public sealed class StoneActor : MonoBehaviour
         modelInstance.transform.localRotation = Quaternion.identity;
         modelColliders = modelInstance.GetComponentsInChildren<Collider>(true);
         foreach (Collider modelCollider in modelColliders)
+        {
+            modelCollider.gameObject.layer = gameObject.layer;
             modelCollider.isTrigger = true;
+        }
 
         isBreaking = false;
         hpHandler.SetMaxHealth(data.MaxHealth);

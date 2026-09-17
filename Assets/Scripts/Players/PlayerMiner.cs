@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.Serialization;
@@ -41,6 +42,7 @@ public sealed class PlayerMiner : MonoBehaviour
     private Vector3 erosionStartDirection;
     private float erosionElapsedTime;
     private bool hasErosionStart;
+    private readonly HashSet<StoneActor> damagedStones = new();
 
     private void OnChangeEditMode(InputAction.CallbackContext context)
     { 
@@ -138,8 +140,8 @@ public sealed class PlayerMiner : MonoBehaviour
         Vector2 screenCenter = new(Screen.width * 0.5f, Screen.height * 0.5f);
         Ray ray = mainCamera.ScreenPointToRay(screenCenter);
 
-        if (Physics.Raycast(ray, out RaycastHit hit, 100f, LayerMask.GetMask("Plane")) &&
-            hit.collider.CompareTag("Plane"))
+        if (Physics.Raycast(ray, out RaycastHit hit, 100f,
+            LayerMask.GetMask("Plane", "Stone"), QueryTriggerInteraction.Collide))
         { 
 
             anchor.SetActive(true);
@@ -258,6 +260,7 @@ public sealed class PlayerMiner : MonoBehaviour
                     // 실제 밀도가 바뀐 pass의 굴착 시간만 누적한다.
                     erosionElapsedTime = Mathf.Min(erosionElapsedTime + interval, erosionDirectionBlendTime);
                 }
+                DamageStones();
                 nextLeftEditTime = Time.time + interval;
             }
         }
@@ -277,6 +280,20 @@ public sealed class PlayerMiner : MonoBehaviour
         else
         {
             nextRightEditTime = 0f;
+        }
+    }
+
+    private void DamageStones()
+    {
+        damagedStones.Clear();
+        Collider[] hits = Physics.OverlapSphere(
+            mouseHit, anchorRadius, LayerMask.GetMask("Stone"), QueryTriggerInteraction.Collide);
+
+        foreach (Collider hit in hits)
+        {
+            StoneActor stone = hit.GetComponentInParent<StoneActor>();
+            if (damagedStones.Add(stone))
+                stone.TakeDamage(100f);
         }
     }
 }
