@@ -60,53 +60,53 @@ public class StockManager : MonoBehaviour
 
     #endregion
 
-    #region Ingredient
+    #region Ore
 
-    // 식재료 하나를 획득했을 때 사용.
-    public void AddIngredient(IngredientAmount ingredientAmount)
+    // 광석 하나를 획득했을 때 사용.
+    public void AddOre(OreAmount oreAmount)
     {
-        AddIngredient(new List<IngredientAmount> { ingredientAmount });
+        AddOre(new List<OreAmount> { oreAmount });
     }
 
-    // 식재료 여러 개를 한 번에 획득했을 때 사용.
-    public void AddIngredient(List<IngredientAmount> ingredientAmounts)
+    // 광석 여러 개를 한 번에 획득했을 때 사용.
+    public void AddOre(List<OreAmount> oreAmounts)
     {
-        if (ingredientAmounts == null)
+        if (oreAmounts == null)
         {
-            Debug.LogWarning("StockManager.AddIngredient에는 null이 아닌 0 이상의 식재료 수량만 전달할 수 있습니다.");
+            Debug.LogWarning("StockManager.AddOre에는 null이 아닌 0 이상의 광석 수량만 전달할 수 있습니다.");
             return;
         }
 
-        foreach (IngredientAmount ingredientAmount in ingredientAmounts)
+        foreach (OreAmount oreAmount in oreAmounts)
         {
-            if (ingredientAmount == null || ingredientAmount.amount < 0)
+            if (oreAmount == null || oreAmount.amount < 0)
             {
-                Debug.LogWarning("StockManager.AddIngredient에는 null이 아닌 0 이상의 식재료 수량만 전달할 수 있습니다.");
+                Debug.LogWarning("StockManager.AddOre에는 null이 아닌 0 이상의 광석 수량만 전달할 수 있습니다.");
                 return;
             }
         }
 
         bool hasChanged = false;
 
-        foreach (IngredientAmount ingredientAmount in ingredientAmounts)
+        foreach (OreAmount oreAmount in oreAmounts)
         {
-            if (ingredientAmount.amount == 0)
+            if (oreAmount.amount == 0)
                 continue;
 
-            IngredientAmount target = stockData.ingredients.Find(
-                entry => entry != null && entry.ingredient == ingredientAmount.ingredient);
+            OreAmount target = stockData.ores.Find(
+                entry => entry != null && entry.oreId == oreAmount.oreId);
 
             if (target == null)
             {
-                stockData.ingredients.Add(new IngredientAmount(
-                    ingredientAmount.ingredient,
-                    ingredientAmount.amount));
+                stockData.ores.Add(new OreAmount(
+                    oreAmount.oreId,
+                    oreAmount.amount));
                 hasChanged = true;
                 continue;
             }
 
             int addedAmount = (int)Math.Min(
-                (long)Mathf.Max(0, target.amount) + ingredientAmount.amount,
+                (long)Mathf.Max(0, target.amount) + oreAmount.amount,
                 int.MaxValue);
 
             if (target.amount == addedAmount)
@@ -120,77 +120,77 @@ public class StockManager : MonoBehaviour
             NotifyStockDataChanged();
     }
 
-    // 식재료 하나를 사용할 수 있는지 확인할 때 사용.
-    public bool CanConsumeIngredient(IngredientAmount ingredientAmount)
+    // 광석 하나를 사용할 수 있는지 확인할 때 사용.
+    public bool CanConsumeOre(OreAmount oreAmount)
     {
-        return CanConsumeIngredient(new List<IngredientAmount> { ingredientAmount });
+        return CanConsumeOre(new List<OreAmount> { oreAmount });
     }
 
-    // 여러 식재료를 모두 사용할 수 있는지 확인할 때 사용.
-    public bool CanConsumeIngredient(List<IngredientAmount> ingredientAmounts)
+    // 여러 광석을 모두 사용할 수 있는지 확인할 때 사용.
+    public bool CanConsumeOre(List<OreAmount> oreAmounts)
     {
-        if (ingredientAmounts == null)
+        if (oreAmounts == null)
             return false;
 
-        foreach (IngredientAmount ingredientAmount in ingredientAmounts)
+        foreach (OreAmount oreAmount in oreAmounts)
         {
-            if (ingredientAmount == null || ingredientAmount.amount < 0)
+            if (oreAmount == null || oreAmount.amount < 0)
                 return false;
 
             long requiredAmount = 0;
 
-            foreach (IngredientAmount requestedAmount in ingredientAmounts)
+            foreach (OreAmount requestedAmount in oreAmounts)
             {
                 if (requestedAmount != null
-                    && requestedAmount.ingredient == ingredientAmount.ingredient)
+                    && requestedAmount.oreId == oreAmount.oreId)
                 {
                     requiredAmount += requestedAmount.amount;
                 }
             }
 
-            if (CalculateIngredientAmount(ingredientAmount.ingredient) < requiredAmount)
+            if (GetOreAmount(oreAmount.oreId) < requiredAmount)
                 return false;
         }
 
         return true;
     }
 
-    // 식재료 하나를 확인하고 실제로 사용할 때 사용.
-    public bool TryConsumeIngredient(IngredientAmount ingredientAmount)
+    // 광석 하나를 확인하고 실제로 사용할 때 사용.
+    public bool TryConsumeOre(OreAmount oreAmount)
     {
-        return TryConsumeIngredient(new List<IngredientAmount> { ingredientAmount });
+        return TryConsumeOre(new List<OreAmount> { oreAmount });
     }
 
-    // 여러 식재료를 확인하고 한 번에 사용할 때 사용.
-    public bool TryConsumeIngredient(List<IngredientAmount> ingredientAmounts)
+    // 여러 광석을 확인하고 한 번에 사용할 때 사용.
+    public bool TryConsumeOre(List<OreAmount> oreAmounts)
     {
-        if (!CanConsumeIngredient(ingredientAmounts))
+        if (!CanConsumeOre(oreAmounts))
             return false;
 
         bool hasChanged = false;
 
-        foreach (IngredientAmount ingredientAmount in ingredientAmounts)
+        foreach (OreAmount oreAmount in oreAmounts)
         {
-            int remainingAmount = ingredientAmount.amount;
+            int remainingAmount = oreAmount.amount;
 
             if (remainingAmount == 0)
                 continue;
 
             hasChanged = true;
 
-            foreach (IngredientAmount stockIngredientAmount in stockData.ingredients)
+            foreach (OreAmount stockOreAmount in stockData.ores)
             {
                 if (remainingAmount == 0)
                     break;
 
-                if (stockIngredientAmount == null
-                    || stockIngredientAmount.ingredient != ingredientAmount.ingredient)
+                if (stockOreAmount == null
+                    || stockOreAmount.oreId != oreAmount.oreId)
                     continue;
 
                 int consumableAmount = Mathf.Min(
-                    Mathf.Max(0, stockIngredientAmount.amount),
+                    Mathf.Max(0, stockOreAmount.amount),
                     remainingAmount);
-                stockIngredientAmount.amount -= consumableAmount;
+                stockOreAmount.amount -= consumableAmount;
                 remainingAmount -= consumableAmount;
             }
         }
@@ -201,14 +201,14 @@ public class StockManager : MonoBehaviour
         return true;
     }
 
-    private int CalculateIngredientAmount(IngredientType ingredient)
+    public int GetOreAmount(int oreId)
     {
         long total = 0;
 
-        foreach (IngredientAmount ingredientAmount in stockData.ingredients)
+        foreach (OreAmount oreAmount in stockData.ores)
         {
-            if (ingredientAmount != null && ingredientAmount.ingredient == ingredient)
-                total += Mathf.Max(0, ingredientAmount.amount);
+            if (oreAmount != null && oreAmount.oreId == oreId)
+                total += Mathf.Max(0, oreAmount.amount);
         }
 
         return (int)Math.Min(total, int.MaxValue);
@@ -225,14 +225,14 @@ public class StockManager : MonoBehaviour
             currency = stockData.currency
         };
 
-        foreach (IngredientAmount ingredientAmount in stockData.ingredients)
+        foreach (OreAmount oreAmount in stockData.ores)
         {
-            if (ingredientAmount == null)
+            if (oreAmount == null)
                 continue;
 
-            saveData.ingredients.Add(new IngredientAmount(
-                ingredientAmount.ingredient,
-                ingredientAmount.amount));
+            saveData.ores.Add(new OreAmount(
+                oreAmount.oreId,
+                oreAmount.amount));
         }
 
         return saveData;
@@ -247,18 +247,16 @@ public class StockManager : MonoBehaviour
             if (IsValidCurrencyAmount(saveData.currency))
                 stockData.currency = saveData.currency;
 
-            if (saveData.ingredients != null)
+            if (saveData.ores != null)
             {
-                foreach (IngredientAmount ingredientAmount in saveData.ingredients)
+                foreach (OreAmount oreAmount in saveData.ores)
                 {
-                    if (ingredientAmount == null
-                        || (int)ingredientAmount.ingredient < 0
-                        || (int)ingredientAmount.ingredient >= ((int)IngredientType.Cookie + 1))
+                    if (oreAmount == null)
                         continue;
 
-                    stockData.ingredients.Add(new IngredientAmount(
-                        ingredientAmount.ingredient,
-                        Mathf.Max(0, ingredientAmount.amount)));
+                    stockData.ores.Add(new OreAmount(
+                        oreAmount.oreId,
+                        Mathf.Max(0, oreAmount.amount)));
                 }
             }
 

@@ -715,7 +715,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::StockManager
   stockData:
     currency: 0
-    ingredients: []
+    ores: []
 --- !u!114 &6817583298313445971
 MonoBehaviour:
   m_ObjectHideFlags: 0

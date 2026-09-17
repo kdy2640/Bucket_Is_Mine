@@ -60,6 +60,6 @@ public class AudioSaveData
 public class StockSaveData
 {
     public int currency;
-    public List<IngredientAmount> ingredients = new();
+    public List<OreAmount> ores = new();
 }
 
