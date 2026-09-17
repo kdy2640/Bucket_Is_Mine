@@ -22,6 +22,12 @@ public class TerrainManager : MonoBehaviour
     [Header("메시 셰이딩")]
     [SerializeField] private bool isSmoothShading;
 
+    [Header("Stone Placement")]
+    [SerializeField] private int stoneSeed = 12345;
+    [SerializeField, Min(0)] private int stonesPerChunk = 1;
+    [SerializeField] private int stoneID = 1;
+    [SerializeField] private StoneActor stonePrefab;
+
     [Header("청크 스트리밍")]
     [SerializeField] private Transform streamingTarget;
     [SerializeField] private TerrainChunkManager chunkManager = new TerrainChunkManager();
@@ -36,6 +42,10 @@ public class TerrainManager : MonoBehaviour
     public int ChunkSize => chunkManager.Grid.ChunkSize;
     public float DensityThreshold => densityThreshold;
     public Material Material => mat;
+    public int StoneSeed => stoneSeed;
+    public int StonesPerChunk => stonesPerChunk;
+    public int StoneID => stoneID;
+    public StoneActor StonePrefab => stonePrefab;
     public bool IsInitialLoadComplete => data != null && chunkManager.Streamer.IsInitialLoadComplete;
     public bool IsSmoothShading
     {

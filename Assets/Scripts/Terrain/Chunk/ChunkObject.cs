@@ -8,4 +8,6 @@ public class ChunkObject
     public MeshFilter meshFilter;
     public MeshRenderer meshRenderer;
     public MeshCollider meshCollider;
+    public StoneSpawnData[] stoneSpawns;
+    public bool stonesSpawned;
 }

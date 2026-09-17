@@ -82,10 +82,22 @@ public class TerrainChunkRegistry : System.IDisposable
     // 해당 좌표의 청크 오브젝트가 활성화되어 있는지 확인한다.
     public bool IsChunkActive(Vector3Int coordinate) => chunks[coordinate].gameObject.activeSelf;
 
-    // 청크 오브젝트의 활성 상태가 요청과 다를 때만 변경한다.
+    // 돌은 최초 활성화 때만 생성하고 이후에는 부모 청크의 활성 상태만 바꾼다.
     public void SetChunkActive(Vector3Int coordinate, bool active)
     {
-        GameObject chunkObject = chunks[coordinate].gameObject;
+        ChunkObject chunk = chunks[coordinate];
+        GameObject chunkObject = chunk.gameObject;
+        if (active && !chunk.stonesSpawned)
+        {
+            foreach (StoneSpawnData spawn in chunk.stoneSpawns)
+            {
+                StoneActor stone = Object.Instantiate(owner.StonePrefab, chunkObject.transform);
+                stone.transform.localPosition = spawn.TerrainLocalPosition;
+                stone.SetData(spawn.StoneID);
+            }
+            chunk.stonesSpawned = true;
+        }
+
         if (chunkObject.activeSelf != active)
         {
             chunkObject.SetActive(active);
@@ -101,6 +113,12 @@ public class TerrainChunkRegistry : System.IDisposable
     {
         if (chunks.TryGetValue(chunkCoord, out ChunkObject chunk))
         {
+            // 씬에서 등록한 기존 청크도 첫 메시 생성 때 배치 정보를 준비한다.
+            if (chunk.stoneSpawns == null)
+            {
+                chunk.stoneSpawns = owner.Data.GetChunkData(chunkCoord).CreateStoneSpawns(
+                    owner.StoneSeed, owner.StonesPerChunk, owner.StoneID, owner.Data.Resolution);
+            }
             return chunk;
         }
 
@@ -116,7 +134,9 @@ public class TerrainChunkRegistry : System.IDisposable
             gameObject = chunkObject,
             meshFilter = chunkObject.AddComponent<MeshFilter>(),
             meshRenderer = chunkObject.AddComponent<MeshRenderer>(),
-            meshCollider = chunkObject.AddComponent<MeshCollider>()
+            meshCollider = chunkObject.AddComponent<MeshCollider>(),
+            stoneSpawns = owner.Data.GetChunkData(chunkCoord).CreateStoneSpawns(
+                owner.StoneSeed, owner.StonesPerChunk, owner.StoneID, owner.Data.Resolution)
         };
 
         chunk.meshRenderer.sharedMaterial = owner.Material;

@@ -28,7 +28,8 @@ public sealed class StonePresenter : MonoBehaviour
         solidObject.localPosition = defaultLocalPosition;
         solidObject.localScale = Vector3.zero;
         currentTween = solidObject.DOScale(defaultLocalScale, spawnDuration)
-            .SetEase(Ease.OutBack);
+            .SetEase(Ease.OutBack)
+            .SetLink(gameObject, LinkBehaviour.PauseOnDisablePlayOnEnable);
     }
 
     public void PlayHitReactionTween()
@@ -37,6 +38,7 @@ public sealed class StonePresenter : MonoBehaviour
         solidObject.localPosition = defaultLocalPosition;
         solidObject.localScale = defaultLocalScale;
         currentTween = solidObject.DOShakePosition(hitDuration, hitStrength, 10)
+            .SetLink(gameObject, LinkBehaviour.PauseOnDisablePlayOnEnable)
             .OnComplete(() => solidObject.localPosition = defaultLocalPosition);
     }
 
@@ -47,6 +49,7 @@ public sealed class StonePresenter : MonoBehaviour
         solidObject.localScale = defaultLocalScale;
         currentTween = solidObject.DOScale(Vector3.zero, breakDuration)
             .SetEase(Ease.InBack)
+            .SetLink(gameObject, LinkBehaviour.PauseOnDisablePlayOnEnable)
             .OnComplete(() => onComplete());
     }
 

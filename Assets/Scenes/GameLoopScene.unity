@@ -170,6 +170,10 @@ MonoBehaviour:
   use3DNoise: 0
   mat: {fileID: 2100000, guid: d2672cbd58c6427a899b26bae3f9299a, type: 2}
   isSmoothShading: 1
+  stoneSeed: 12345
+  stonesPerChunk: 1
+  stoneID: 1
+  stonePrefab: {fileID: 7971657989837151028, guid: 60cd29e7a060f1a4080fb3af63739717, type: 3}
   streamingTarget: {fileID: 1026908064}
   chunkManager:
     grid:
