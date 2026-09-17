@@ -13,7 +13,7 @@ PlayerSettings:
   useOnDemandResources: 0
   accelerometerFrequency: 60
   companyName: DefaultCompany
-  productName: Bucket_Is_Mine
+  productName: Deep Forge
   defaultCursor: {fileID: 0}
   cursorHotspot: {x: 0, y: 0}
   m_SplashScreenBackgroundColor: {r: 0.13725491, g: 0.12156863, b: 0.1254902, a: 1}
@@ -846,14 +846,14 @@ PlayerSettings:
   editorAssembliesCompatibilityLevel: 1
   m_RenderingPath: 1
   m_MobileRenderingPath: 1
-  metroPackageName: Bucket_Is_Mine
+  metroPackageName: DeepForge
   metroPackageVersion: 
   metroCertificatePath: 
   metroCertificatePassword: 
   metroCertificateSubject: 
   metroCertificateIssuer: 
   metroCertificateNotAfter: 0000000000000000
-  metroApplicationDescription: Bucket_Is_Mine
+  metroApplicationDescription: Deep Forge
   wsaImages: {}
   metroTileShortName: 
   metroTileShowName: 0
@@ -927,7 +927,7 @@ PlayerSettings:
   cloudProjectId: 83e171ce-b121-43fc-9573-d6b695309910
   framebufferDepthMemorylessMode: 0
   qualitySettingsNames: []
-  projectName: Bucket_Is_Mine
+  projectName: Deep Forge
   organizationId: rlaehduq2640
   cloudEnabled: 0
   legacyClampBlendShapeWeights: 0

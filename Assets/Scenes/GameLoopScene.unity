@@ -175,7 +175,7 @@ MonoBehaviour:
     grid:
       width: 1024
       densityFieldHeight: 150
-      resolution: 0.25
+      resolution: 0.375
       chunkSize: 16
     streamer:
       loadDistance: 110
@@ -670,6 +670,9 @@ MonoBehaviour:
   anchorRadius: 2.5
   editPower: 0.35
   editInterval: 0.05
+  erosionDirectionBlendTime: 0.5
+  erosionSideStrength: 0.2
+  useErosionDistanceFalloff: 1
   terrainManager: {fileID: 134620926}
 --- !u!54 &1026908060
 Rigidbody:

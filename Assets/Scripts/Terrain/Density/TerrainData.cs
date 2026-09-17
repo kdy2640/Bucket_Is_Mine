@@ -174,6 +174,10 @@ public class TerrainData : IDisposable
         float radius,
         float power,
         float densityThreshold,
+        Vector3 worldErosionDirection,
+        Matrix4x4 densityNormalToWorld,
+        float erosionSideStrength,
+        bool useErosionDistanceFalloff,
         out Vector3Int minChangedIndex,
         out Vector3Int maxChangedIndex)
     {
@@ -188,6 +192,11 @@ public class TerrainData : IDisposable
 
         Vector3Int center = PositionToIndex(localPosition);
         int indexRadius = Mathf.CeilToInt(radius / Resolution);
+        // 표면 교차점은 구 안에 있어도 edge의 endpoint는 한 칸 밖에 있을 수 있다.
+        if (power < 0f)
+        {
+            indexRadius++;
+        }
         Vector3Int extent = Vector3Int.one * indexRadius;
         Vector3Int minIndex = Vector3Int.Max(center - extent, Vector3Int.zero);
         Vector3Int maxIndex = Vector3Int.Min(center + extent, minChangedIndex);
@@ -206,11 +215,84 @@ public class TerrainData : IDisposable
             Mathf.Min(maxIndex.z / ChunkSize, ChunkCounts.z - 1));
         Vector3Int count = maxChunk - minChunk + Vector3Int.one;
         int jobCount = count.x * count.y * count.z;
+        Vector3Int erosionSampleCount = maxIndex - minIndex + Vector3Int.one;
+        NativeArray<float> erosionWeights = new NativeArray<float>(
+            power < 0f ? erosionSampleCount.x * erosionSampleCount.y * erosionSampleCount.z : 0,
+            Allocator.TempJob);
+
+        NativeArray<float> densitySnapshot = default;
+        CalculateErosionWeightsJob weightsJob = default;
+        if (power < 0f)
+        {
+            // endpoint 범위에 노멀 계산용 이웃 한 칸을 더해 시작 밀도를 복사한다.
+            Vector3Int snapshotMin = Vector3Int.Max(minIndex - Vector3Int.one, Vector3Int.zero);
+            Vector3Int snapshotMax = Vector3Int.Min(maxIndex + Vector3Int.one,
+                new Vector3Int(Width, DensityFieldHeight, Width));
+            Vector3Int snapshotCount = snapshotMax - snapshotMin + Vector3Int.one;
+            densitySnapshot = new NativeArray<float>(snapshotCount.x * snapshotCount.y * snapshotCount.z,
+                Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
+            Vector3Int snapshotMinChunk = new Vector3Int(
+                Mathf.Min(snapshotMin.x / ChunkSize, ChunkCounts.x - 1),
+                Mathf.Min(snapshotMin.y / ChunkSize, ChunkCounts.y - 1),
+                Mathf.Min(snapshotMin.z / ChunkSize, ChunkCounts.z - 1));
+            Vector3Int snapshotMaxChunk = new Vector3Int(
+                Mathf.Min(snapshotMax.x / ChunkSize, ChunkCounts.x - 1),
+                Mathf.Min(snapshotMax.y / ChunkSize, ChunkCounts.y - 1),
+                Mathf.Min(snapshotMax.z / ChunkSize, ChunkCounts.z - 1));
+
+            for (int x = snapshotMinChunk.x; x <= snapshotMaxChunk.x; x++)
+            {
+                for (int y = snapshotMinChunk.y; y <= snapshotMaxChunk.y; y++)
+                {
+                    for (int z = snapshotMinChunk.z; z <= snapshotMaxChunk.z; z++)
+                    {
+                        ChunkDensityData chunk = chunks[new Vector3Int(x, y, z)];
+                        Vector3Int copyMin = Vector3Int.Max(snapshotMin, chunk.Origin);
+                        Vector3Int copyMax = Vector3Int.Min(snapshotMax,
+                            chunk.Origin + chunk.SampleCount - Vector3Int.one);
+                        int copyLength = copyMax.z - copyMin.z + 1;
+                        // 청크의 연속된 Z 구간을 복사해 샘플마다 Dictionary를 조회하지 않는다.
+                        for (int sampleX = copyMin.x; sampleX <= copyMax.x; sampleX++)
+                        {
+                            for (int sampleY = copyMin.y; sampleY <= copyMax.y; sampleY++)
+                            {
+                                int sourceIndex = ((sampleX - chunk.Origin.x) * chunk.SampleCount.y +
+                                    sampleY - chunk.Origin.y) * chunk.SampleCount.z + copyMin.z - chunk.Origin.z;
+                                int targetIndex = ((sampleX - snapshotMin.x) * snapshotCount.y +
+                                    sampleY - snapshotMin.y) * snapshotCount.z + copyMin.z - snapshotMin.z;
+                                NativeArray<float>.Copy(chunk.Densities, sourceIndex, densitySnapshot, targetIndex, copyLength);
+                            }
+                        }
+                    }
+                }
+            }
+
+            weightsJob = new CalculateErosionWeightsJob
+            {
+                Densities = densitySnapshot,
+                DensityOrigin = snapshotMin,
+                DensitySampleCount = snapshotCount,
+                MaxTerrainIndex = new Vector3Int(Width, DensityFieldHeight, Width),
+                WeightOrigin = minIndex,
+                WeightSampleCount = erosionSampleCount,
+                LocalPosition = localPosition,
+                Resolution = Resolution,
+                Radius = radius,
+                DensityThreshold = densityThreshold,
+                WorldErosionDirection = worldErosionDirection,
+                DensityNormalToWorld = densityNormalToWorld,
+                ErosionSideStrength = erosionSideStrength,
+                UseDistanceFalloff = useErosionDistanceFalloff,
+                Weights = erosionWeights
+            };
+        }
+
         NativeArray<JobHandle> handles = new NativeArray<JobHandle>(jobCount, Allocator.Temp);
         NativeArray<Vector3Int>[] changedBounds = new NativeArray<Vector3Int>[jobCount];
 
         using (ScheduleMarker.Auto())
         {
+            JobHandle weightsHandle = power < 0f ? weightsJob.Schedule(erosionWeights.Length, 64) : default;
             int i = 0;
             for (int x = minChunk.x; x <= maxChunk.x; x++)
             {
@@ -234,9 +316,12 @@ public class TerrainData : IDisposable
                             Resolution = Resolution,
                             Radius = radius,
                             Power = power,
+                            ErosionWeights = erosionWeights,
+                            ErosionOrigin = minIndex,
+                            ErosionSampleCount = erosionSampleCount,
                             ChangedBounds = changedBounds[i]
                         };
-                        handles[i] = job.Schedule();
+                        handles[i] = job.Schedule(weightsHandle);
                         i++;
                     }
                 }
@@ -248,6 +333,11 @@ public class TerrainData : IDisposable
             JobHandle.CompleteAll(handles);
         }
         handles.Dispose();
+        erosionWeights.Dispose();
+        if (power < 0f)
+        {
+            densitySnapshot.Dispose();
+        }
 
         bool changed = false;
         for (int i = 0; i < jobCount; i++)

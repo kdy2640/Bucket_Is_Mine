@@ -64,21 +64,29 @@ public class TerrainManager : MonoBehaviour
     }
 
     // 월드 좌표의 구 영역에 밀도를 더하고 영향을 받은 청크 메시만 갱신한다.
-    public void AddDensitySphere(Vector3 worldPosition, float radius, float power)
+    public bool AddDensitySphere(
+        Vector3 worldPosition, float radius, float power,
+        Vector3 worldErosionDirection, float erosionSideStrength, bool useErosionDistanceFalloff)
     {
         EnsureInitialized();
         Vector3 localPosition = transform.InverseTransformPoint(worldPosition);
 
-        if (data.ModifyDensitySphere(
+        bool changed = data.ModifyDensitySphere(
             localPosition,
             radius,
             power,
             densityThreshold,
+            worldErosionDirection.normalized,
+            transform.worldToLocalMatrix.transpose,
+            erosionSideStrength,
+            useErosionDistanceFalloff,
             out Vector3Int minChangedIndex,
-            out Vector3Int maxChangedIndex))
+            out Vector3Int maxChangedIndex);
+        if (changed)
         {
             chunkManager.RegenerateChunksInBounds(minChangedIndex, maxChangedIndex);
         }
+        return changed;
     }
 
     // 현재 지형을 정리하고 설정값으로 밀도와 청크 메시를 다시 생성한다.

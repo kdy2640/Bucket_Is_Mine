@@ -1,4 +1,4 @@
-Shader "Bucket Is Mine/Terrain Vertex Color"
+Shader "Deep Forge/Terrain Vertex Color"
 {
     Properties
     {
