@@ -1,0 +1,21 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dfbd3efdd5226874abdb09cbc8c3fbab, type: 3}
+  m_Name: CopperStone
+  m_EditorClassIdentifier: Assembly-CSharp::StoneDataSO
+  id: 1
+  tier: 1
+  maxHealth: 5
+  modelPrefab: {fileID: 262150283930371997, guid: 451870d8d0296e247b5619509287a1bc, type: 3}
+  rewardList:
+  - oreId: 1
+    amount: 3
