@@ -21,8 +21,8 @@ public sealed class PlayerMiner : MonoBehaviour
     [SerializeField] private TerrainManager terrainManager;
     InputManager inputManager;
 
-    float leftEditTimer;
-    float rightEditTimer;
+    float nextLeftEditTime;
+    float nextRightEditTime;
     bool isLeftMouseHolding;
     bool isRightMouseHolding;
     PlayerController playerController;
@@ -50,9 +50,17 @@ public sealed class PlayerMiner : MonoBehaviour
 
     private void OnLeftMouse(InputAction.CallbackContext context)
     {
-        if (context.performed)
+        if (context.started)
         {
             isLeftMouseHolding = true;
+            nextLeftEditTime = 0f;
+            if (!isMiningMode || terrainManager == null || cameraController == null) return;
+
+            UpdateMiningTarget();
+            if (!anchor.activeSelf) return;
+
+            terrainManager.AddDensitySphere(mouseHit, anchorRadius, -editPower);
+            nextLeftEditTime = Time.time + Mathf.Max(0.01f, editInterval);
         }
         else if (context.canceled)
         {
@@ -62,9 +70,17 @@ public sealed class PlayerMiner : MonoBehaviour
 
     private void OnRightMouse(InputAction.CallbackContext context)
     {
-        if (context.performed)
+        if (context.started)
         {
             isRightMouseHolding = true;
+            nextRightEditTime = 0f;
+            if (!isMiningMode || terrainManager == null || cameraController == null) return;
+
+            UpdateMiningTarget();
+            if (!anchor.activeSelf) return;
+
+            terrainManager.AddDensitySphere(mouseHit, anchorRadius, editPower);
+            nextRightEditTime = Time.time + Mathf.Max(0.01f, editInterval);
         }
         else if (context.canceled)
         {
@@ -110,7 +126,7 @@ public sealed class PlayerMiner : MonoBehaviour
 
             anchor.SetActive(true);
             anchor.transform.position = hit.point;
-            anchor.transform.localScale = Vector3.one * anchorRadius;
+            anchor.transform.localScale = Vector3.one * (anchorRadius * 2f);
             mouseHit = hit.point;
             return;
         }
@@ -200,30 +216,28 @@ public sealed class PlayerMiner : MonoBehaviour
 
         if (isLeftMouseHolding)
         {
-            leftEditTimer -= Time.deltaTime;
-            if (leftEditTimer <= 0f)
+            if (Time.time >= nextLeftEditTime)
             {
                 terrainManager.AddDensitySphere(mouseHit, anchorRadius, -editPower);
-                leftEditTimer += interval;
+                nextLeftEditTime = Time.time + interval;
             }
         }
         else
         {
-            leftEditTimer = 0f;
+            nextLeftEditTime = 0f;
         }
 
         if (isRightMouseHolding)
         {
-            rightEditTimer -= Time.deltaTime;
-            if (rightEditTimer <= 0f)
+            if (Time.time >= nextRightEditTime)
             {
                 terrainManager.AddDensitySphere(mouseHit, anchorRadius, editPower);
-                rightEditTimer += interval;
+                nextRightEditTime = Time.time + interval;
             }
         }
         else
         {
-            rightEditTimer = 0f;
+            nextRightEditTime = 0f;
         }
     }
 }
